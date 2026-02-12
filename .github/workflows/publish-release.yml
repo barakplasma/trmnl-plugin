@@ -16,7 +16,7 @@ jobs:
       - name: Create plugin archive
         run: |
           cd src
-          zip -r ../kids-age-plugin.zip .
+          zip -r ../kids-age-plugin.zip *.yml *.liquid
           cd ..
 
       - name: Upload release asset

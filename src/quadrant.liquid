@@ -1,0 +1,26 @@
+{% include 'shared.liquid' %}
+
+{% if kids.size > 0 %}
+<div class="layout layout--col gap--medium justify-center h--full">
+    {% for kid_data in kids %}
+      {% assign parts = kid_data | split: "," %}
+      {% assign name = parts[0] %}
+      {% assign years = parts[4] %}
+      {% assign months = parts[5] %}
+      {% assign days = parts[6] %}
+
+    <div class="layout layout--col">
+        <span class="value value--small">{{ name }}</span>
+        <span class="label">{{ years }}y {{ months }}m {{ days }}d</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="layout layout--col justify-center h--full">
+    <span class="label">Configure in settings</span>
+</div>
+{% endif %}
+
+<div class="title_bar">
+    <span class="title">Kids Age</span>
+</div>
