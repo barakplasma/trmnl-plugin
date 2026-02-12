@@ -1,0 +1,27 @@
+name: Publish Plugin Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create plugin archive
+        run: |
+          cd src
+          zip -r ../kids-age-plugin.zip .
+          cd ..
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: kids-age-plugin.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
