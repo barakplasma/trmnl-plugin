@@ -1,26 +1,31 @@
-{% assign kids = "" | split: "," %}
+{% assign kids = '' | split: '' %}
+{% assign seconds_in_day = 86400 %}
+{% assign days_in_year = 365 %}
+{% assign days_in_month = 30 %}
+
 {% for i in (1..4) %}
   {% capture name_key %}kid_{{ i }}_name{% endcapture %}
   {% capture birthday_key %}kid_{{ i }}_birthday{% endcapture %}
-  {% assign name = config[name_key] | default: "" | strip %}
-  {% assign birthday_str = config[birthday_key] | default: "" | strip %}
+  {% assign name = config[name_key] | default: '' | strip %}
+  {% assign birthday_str = config[birthday_key] | default: '' | strip %}
 
-  {% if name != "" and birthday_str != "" %}
-    {% assign bday_ts = birthday_str | date: "%s" %}
-    {% assign now_ts = "now" | date: "%s" %}
+  {% if name != '' and birthday_str != '' %}
+    {% assign bday_ts = birthday_str | date: '%s' %}
+    {% assign now_ts = 'now' | date: '%s' %}
     {% assign age_seconds = now_ts | minus: bday_ts %}
-    {% assign age_days = age_seconds | divided_by: 86400 %}
 
-    {% assign years = age_days | divided_by: 365.25 | floor %}
-    {% assign remaining_days = age_days | minus: years | times: 365.25 | floor %}
-    {% assign months = remaining_days | divided_by: 30.4375 | floor %}
-    {% assign days = remaining_days | minus: months | times: 30.4375 | floor %}
+    {% assign age_days_raw = age_seconds | divided_by: seconds_in_day %}
+    {% assign age_days = age_days_raw | floor %}
+    {% assign years = age_days | divided_by: days_in_year %}
+    {% assign remaining_days = age_days | modulo: days_in_year %}
+    {% assign months = remaining_days | divided_by: days_in_month %}
+    {% assign days = remaining_days | modulo: days_in_month %}
 
-    {% assign bday_formatted = birthday_str | date: "%s" | date: "%A %B %-d, %Y" %}
-    {% assign now_formatted = "now" | date: "%A %B %-d, %Y" %}
+    {% assign bday_formatted = birthday_str | date: '%A %B %-d, %Y' %}
+    {% assign now_formatted = 'now' | date: '%A %B %-d, %Y' %}
 
-    {% assign kid = "" %}
     {% capture kid %}{{ name }},{{ birthday_str }},{{ bday_formatted }},{{ now_formatted }},{{ years }},{{ months }},{{ days }}{% endcapture %}
-    {% assign kids = kids | push: kid %}
+    {% assign kid_item = kid | split: '|||' %}
+    {% assign kids = kids | concat: kid_item %}
   {% endif %}
 {% endfor %}

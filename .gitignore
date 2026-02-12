@@ -1,0 +1,5 @@
+# Local beads database and metadata
+.beads/
+
+# Generated plugin archive
+kids-age-plugin.zip
