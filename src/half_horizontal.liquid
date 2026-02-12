@@ -1,0 +1,29 @@
+{% include 'shared.liquid' %}
+
+{% if kids.size > 0 %}
+<div class="layout layout--row gap--large h--full">
+    {% for kid_data in kids %}
+      {% assign parts = kid_data | split: "," %}
+      {% assign name = parts[0] %}
+      {% assign birthday = parts[1] %}
+      {% assign years = parts[4] %}
+      {% assign months = parts[5] %}
+      {% assign days = parts[6] %}
+      {% assign bday_date = birthday | date: "%b %-d, %Y" %}
+
+    <div class="layout layout--col gap--medium justify-center">
+        <span class="value value--medium">{{ name }}</span>
+        <span class="label">Born: {{ bday_date }}</span>
+        <span class="value value--small">{{ years }}y {{ months }}m {{ days }}d</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="layout layout--col justify-center h--full">
+    <span class="label">Configure kids in plugin settings</span>
+</div>
+{% endif %}
+
+<div class="title_bar">
+    <span class="title">Kids Age</span>
+</div>
