@@ -16,9 +16,14 @@ Smaller layouts (half, quadrant) show progressively compact versions.
 
 ## Installation
 
-1. ZIP the contents of the `src/` directory (includes `settings.yml` and all `.liquid` template files)
-2. In your TRMNL instance, import the ZIP as a new plugin
+1. ZIP the contents of the `src/` directory
+2. In your [byos_laravel](https://github.com/usetrmnl/byos_laravel) instance, import the ZIP as a new plugin
 3. Configure your kids' names and birthdays in the plugin settings
+
+The plugin includes:
+- `settings.yml` - Plugin configuration and custom fields schema
+- `plugin.php` - PHP logic for computing ages from birthdays using Carbon
+- `*.blade.php` - Blade templates for different screen sizes
 
 ## Configuration
 

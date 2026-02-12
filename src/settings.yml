@@ -1,8 +1,8 @@
 name: "Kids Age"
 strategy: "static"
-no_screen_padding: "no"
-dark_mode: "no"
-refresh_interval: 720
+no_screen_padding: false
+dark_mode: false
+refresh_interval: 86400
 custom_fields:
   - keyname: "kid_1_name"
     field_type: "text"
