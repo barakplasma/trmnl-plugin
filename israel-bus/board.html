@@ -1,0 +1,55 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&display=block">
+<style>
+  /* TRMNL's fonts have no Hebrew; BYOS waits for network idle, so this font is loaded before the screenshot. */
+  .ib, .ib .title, .ib .label, .ib .value, .title_bar.ib .instance { font-family: "Noto Sans Hebrew", sans-serif; }
+  .ib-board { display: flex; flex-direction: row; align-items: stretch; gap: 16px; }
+  .ib-stop { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ib-head { align-self: stretch; text-align: right; }
+  .ib-arr { display: flex; flex-wrap: wrap; gap: 0 14px; }
+  .ib-min { font-weight: 700; }
+  .title_bar.ib .instance { text-align: left; }
+  /* One payload serves every size; BYOS wraps each layout in .view--{size}. */
+  .view--half_vertical .ib-board { flex-direction: column; }
+  .view--half_vertical .ib-stop { flex: none; width: 100%; }
+  .view--quadrant .ib-stop:nth-of-type(n+2),
+  .view--quadrant .ib-dir { display: none; }
+  .view--half_horizontal .ib-line:nth-of-type(n+3),
+  .view--half_vertical .ib-line:nth-of-type(n+3),
+  .view--quadrant .ib-line:nth-of-type(n+3),
+  .view--half_horizontal .ib-a:nth-of-type(n+3),
+  .view--half_vertical .ib-a:nth-of-type(n+3),
+  .view--quadrant .ib-a:nth-of-type(n+3) { display: none; }
+</style>
+<div class="layout ib ib-board" dir="rtl" lang="he">
+{{- if not .Stops}}
+  <span class="label">יש להגדיר תחנת עלייה בהגדרות התוסף</span>
+{{- end}}
+{{- range .Stops}}
+  <div class="ib-stop">
+    <span class="title title--small clamp--1 ib-head">{{.Header}}</span>
+    {{- if .Error}}
+    <span class="label">{{.Error}}</span>
+    {{- else if not .Lines}}
+    <span class="label">אין יציאות קרובות</span>
+    {{- end}}
+    {{- range .Lines}}
+    <div class="item ib-line">
+      <div class="meta"></div>
+      <div class="content">
+        <div class="flex gap--small">
+          <span class="value value--small">{{.Line}}</span>
+          <span class="label label--small clamp--1 ib-dir">ל{{.Direction}}</span>
+        </div>
+        <span class="label ib-arr">
+          {{- range .Arrivals}}<span class="ib-a" dir="rtl"><span class="ib-min">{{if eq .Min 0}}עכשיו{{else}}{{.Min}} ד׳{{end}}</span> <bdi dir="ltr">{{if not .Realtime}}~{{end}}{{.At}}</bdi></span>{{end -}}
+        </span>
+      </div>
+    </div>
+    {{- end}}
+  </div>
+{{- end}}
+</div>
+<div class="title_bar ib" dir="rtl" lang="he">
+  <span class="title">{{.Title}}</span>
+  <span class="instance">עודכן <span dir="ltr">{{.Updated}}</span> · <span dir="ltr">~</span> לפי לוח זמנים</span>
+</div>

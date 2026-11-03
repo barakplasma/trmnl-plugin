@@ -4,10 +4,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -24,6 +27,7 @@ import (
 const (
 	maxStops         = 4
 	maxArrivals      = 3
+	maxLines         = 6  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
 	maxConcurrent    = 5
 	routesTTL        = time.Hour
@@ -97,8 +101,31 @@ type Stop struct {
 }
 
 type Response struct {
+	Title   string `json:"title"`
 	Updated string `json:"updated"`
 	Stops   []Stop `json:"stops"`
+	HTML    string `json:"html"` // the whole board, ready for the plugin to print
+}
+
+//go:embed board.html
+var boardHTML string
+
+var board = template.Must(template.New("board").Parse(boardHTML))
+
+// Header is the stop column's title, "from ← to", with names cut at "/" (the street part).
+func (s Stop) Header() string {
+	short := func(name string) string { before, _, _ := strings.Cut(name, "/"); return before }
+	h := s.Label
+	if h == "" {
+		h = short(s.Name)
+	}
+	if h == "" {
+		h = s.Code
+	}
+	if to := short(s.ToName); to != "" {
+		h += " ← " + to
+	}
+	return h
 }
 
 func mustTZ(name string) *time.Location {
@@ -314,10 +341,13 @@ func fetchStop(ctx context.Context, code, to, label string, wanted []string, now
 		log.Printf("stop %s: %d/%d route lookups failed: %v", code, len(failed), len(routes), failed[0])
 	}
 	sort.SliceStable(stop.Lines, func(i, j int) bool { return stop.Lines[i].Arrivals[0].Min < stop.Lines[j].Arrivals[0].Min })
+	if len(stop.Lines) > maxLines {
+		stop.Lines = stop.Lines[:maxLines]
+	}
 	return stop
 }
 
-// handleStops serves GET /stops?stop=CODE&to=CODE&lines=1,2&label=X[&stop=...&to=...&lines=...&label=...].
+// handleStops serves GET /stops?title=T&stop=CODE&to=CODE&lines=1,2&label=X[&stop=...&to=...&lines=...&label=...].
 // Params pair up by position; a blank stop (an unused TRMNL slot) is skipped.
 func handleStops(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -332,7 +362,10 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), requestBudget)
 	defer cancel()
 	now := time.Now()
-	resp := Response{Updated: now.In(israel).Format("15:04")}
+	resp := Response{Title: strings.TrimSpace(q.Get("title")), Updated: now.In(israel).Format("15:04")}
+	if resp.Title == "" {
+		resp.Title = "אוטובוסים"
+	}
 	type ask struct {
 		code, to, label string
 		wanted          []string
@@ -371,6 +404,12 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
+	var buf bytes.Buffer
+	if err := board.Execute(&buf, resp); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp.HTML = buf.String()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }

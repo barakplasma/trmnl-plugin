@@ -17,13 +17,14 @@ flowchart LR
   S -- "per line, 5 at a time" --> C["Calendar/GetRouteCalendarAtStopsByStopCodes<br/>minutes to arrival"]
 ```
 
-The plugin can't call the ministry API directly: listing a stop's lines needs today's date and returns about 1 MB,
-and arrival times cost one request per line. The small Go service does that and returns a few hundred bytes.
+The Go service does all the work: it calls the ministry API (listing a stop's lines needs today's date and returns
+about 1 MB; arrival times cost one request per line), filters by direction, and renders the finished board as HTML.
+The plugin's Liquid templates only print it.
 
 ## Service
 
 ```
-GET /stops?stop=27997&to=21534&lines=124,155&label=&stop=21500&to=&lines=&label=
+GET /stops?title=מהבית+לעבודה&stop=27997&to=21534&lines=124,155&label=&stop=21500&to=&lines=&label=
 GET /healthz
 ```
 
@@ -32,7 +33,7 @@ GET /healthz
 `lines` is comma-separated and matched exactly (`1` is not `1א`); blank means all lines (capped at 12).
 
 ```json
-{"updated":"21:10","stops":[{"code":"27997","name":"ת. רכבת תל אביב - סבידור/הורדה","label":"","lines":[
+{"title":"מהבית לעבודה","updated":"21:10","html":"<link …>…","stops":[{"code":"27997","name":"ת. רכבת תל אביב - סבידור/הורדה","label":"","lines":[
   {"line":"253","direction":"תל אביב יפו רכבת מרכז","operator":"אלקטרה אפיקים",
    "arrivals":[{"min":5,"at":"21:12","realtime":true}]}]}]}
 ```
@@ -45,7 +46,10 @@ Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test
 
 ## Plugin
 
-`src/` holds `settings.yml` and the Liquid templates. Every layout prints the board built in `shared.liquid`, sized by `size`.
+`src/` holds `settings.yml` and the Liquid templates, which just print the service's `html`
+(or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`board.html`](board.html) is its Go template.
+One payload serves every size: BYOS wraps each layout in `.view--{size}`, and CSS there stacks, trims or hides
+(full: 2 options × 6 lines × 3 times; halves: 2 lines × 2 times; quadrant: option 1 only).
 
 In BYOS Laravel, import the `israel-bus-plugin.zip` from a release (or a zip of `src/`), then set:
 

@@ -3,7 +3,7 @@ strategy: "polling"
 # One plugin instance per trip (e.g. home -> work, work -> home). Each trip has
 # up to two ways to leave (e.g. a bus stop and a light rail stop); blank slots
 # are skipped by the server. "to" keeps only lines heading to that stop.
-polling_url: "{{ server_url }}/stops?stop={{ stop_1_code }}&to={{ stop_1_to }}&lines={{ stop_1_lines | url_encode }}&label={{ stop_1_label | url_encode }}&stop={{ stop_2_code }}&to={{ stop_2_to }}&lines={{ stop_2_lines | url_encode }}&label={{ stop_2_label | url_encode }}"
+polling_url: "{{ server_url }}/stops?title={{ trip_title | url_encode }}&stop={{ stop_1_code }}&to={{ stop_1_to }}&lines={{ stop_1_lines | url_encode }}&label={{ stop_1_label | url_encode }}&stop={{ stop_2_code }}&to={{ stop_2_to }}&lines={{ stop_2_lines | url_encode }}&label={{ stop_2_label | url_encode }}"
 polling_verb: "get"
 no_screen_padding: "no"
 dark_mode: "no"

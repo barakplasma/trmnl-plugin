@@ -141,3 +141,41 @@ func TestBadInput(t *testing.T) {
 		t.Errorf("too many stops: %d", code)
 	}
 }
+
+func TestBoardHTML(t *testing.T) {
+	var routeCalls atomic.Int32
+	fakeUpstream(t, &routeCalls)
+	_, resp := get(t, "title=%D7%94%D7%91%D7%99%D7%AA%3Cb%3E&stop=27997&to=99999&label=")
+	h := resp.HTML
+	for _, want := range []string{
+		`dir="rtl"`,
+		"הבית&lt;b&gt;", // title from the query, escaped
+		"ת. רכבת תל אביב - סבידור ← תחנת בדיקה", // names cut at "/"
+		`<span class="value value--small">124</span>`,
+		"13 ד׳", `<bdi dir="ltr">20:13</bdi>`, // live
+		`<bdi dir="ltr">~20:40</bdi>`, // scheduled
+	} {
+		if !strings.Contains(h, want) {
+			t.Errorf("html missing %q", want)
+		}
+	}
+	if _, resp = get(t, ""); !strings.Contains(resp.HTML, "יש להגדיר תחנת עלייה") || resp.Title != "אוטובוסים" {
+		t.Errorf("empty config: title %q, html %q", resp.Title, resp.HTML)
+	}
+}
+
+func TestHeader(t *testing.T) {
+	for _, c := range []struct {
+		s    Stop
+		want string
+	}{
+		{Stop{Code: "1"}, "1"},
+		{Stop{Code: "1", Name: "א/ב"}, "א"},
+		{Stop{Code: "1", Name: "א/ב", Label: "בית"}, "בית"},
+		{Stop{Code: "1", Name: "א/ב", ToName: "ג/ד"}, "א ← ג"},
+	} {
+		if got := c.s.Header(); got != c.want {
+			t.Errorf("%+v: got %q want %q", c.s, got, c.want)
+		}
+	}
+}
