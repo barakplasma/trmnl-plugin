@@ -50,6 +50,27 @@ type route struct {
 	Desc      string
 	Direction string
 	Operator  string
+	Stops     []stopRef // in route order
+}
+
+type stopRef struct {
+	Code string
+	Name string
+}
+
+// seq is the position of a stop code on the route, or -1.
+func (r route) seq(code string) int {
+	return slices.IndexFunc(r.Stops, func(s stopRef) bool { return s.Code == code })
+}
+
+// stopName finds a stop's Hebrew name in any route's stop list.
+func stopName(routes []route, code string) string {
+	for _, r := range routes {
+		if i := r.seq(code); i >= 0 {
+			return r.Stops[i].Name
+		}
+	}
+	return ""
 }
 
 type Arrival struct {
@@ -66,10 +87,13 @@ type Line struct {
 }
 
 type Stop struct {
-	Code  string `json:"code"`
-	Label string `json:"label"`
-	Lines []Line `json:"lines"`
-	Error string `json:"error,omitempty"`
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	To     string `json:"to,omitempty"`
+	ToName string `json:"to_name,omitempty"`
+	Label  string `json:"label"`
+	Lines  []Line `json:"lines"`
+	Error  string `json:"error,omitempty"`
 }
 
 type Response struct {
@@ -136,6 +160,10 @@ func routesAtStop(ctx context.Context, code string, now time.Time) ([]route, err
 			RouteDesc  string            `json:"routeDesc"`
 			Headsign   map[string]string `json:"headsign"`
 			AgencyName string            `json:"agencyName"`
+			Stops      []struct {
+				Stopcode int               `json:"stopcode"`
+				Name     map[string]string `json:"name"`
+			} `json:"stops"`
 		} `json:"routesInStop"`
 	}
 	q := url.Values{"stopCode": {code}, "day": {local.Format("2006-01-02T15:04:05")}}
@@ -151,7 +179,11 @@ func routesAtStop(ctx context.Context, code string, now time.Time) ([]route, err
 		if dir == "" {
 			dir = r.Headsign["en"]
 		}
-		routes = append(routes, route{r.RouteName, r.RouteDesc, strings.ReplaceAll(dir, "_", " "), r.AgencyName})
+		stops := make([]stopRef, len(r.Stops))
+		for i, st := range r.Stops {
+			stops[i] = stopRef{fmt.Sprint(st.Stopcode), st.Name["he"]}
+		}
+		routes = append(routes, route{r.RouteName, r.RouteDesc, strings.ReplaceAll(dir, "_", " "), r.AgencyName, stops})
 	}
 	// An empty list is usually a night gap or an upstream hiccup; don't pin it.
 	if len(routes) > 0 {
@@ -180,14 +212,20 @@ func routeTimes(ctx context.Context, code, desc string) ([]Arrival, error) {
 		return nil, err
 	}
 	var out []Arrival
+	live := map[string]bool{}
 	if s := data[code]; s != nil {
 		for _, t := range s.StopTimes {
 			if t.MinutesToArrival == nil || *t.MinutesToArrival < 0 {
 				continue
 			}
 			out = append(out, Arrival{int(*t.MinutesToArrival + 0.5), t.ArrivalTimeString, t.IsRealTime})
+			if t.IsRealTime {
+				live[t.ArrivalTimeString] = true
+			}
 		}
 	}
+	// Upstream sometimes lists a bus both live and scheduled at the same time; keep the live one.
+	out = slices.DeleteFunc(out, func(a Arrival) bool { return !a.Realtime && live[a.At] })
 	sort.Slice(out, func(i, j int) bool { return out[i].Min < out[j].Min })
 	if len(out) > maxArrivals {
 		out = out[:maxArrivals]
@@ -196,13 +234,29 @@ func routeTimes(ctx context.Context, code, desc string) ([]Arrival, error) {
 }
 
 // fetchStop returns the lines at a stop with upcoming arrivals, soonest first.
+// to, if set, keeps only lines that reach that stop after this one (the direction);
 // wanted filters by line number ("1" does not match "1א"); empty means all.
-func fetchStop(ctx context.Context, code, label string, wanted []string, now time.Time) Stop {
-	stop := Stop{Code: code, Label: label, Lines: []Line{}}
+func fetchStop(ctx context.Context, code, to, label string, wanted []string, now time.Time) Stop {
+	stop := Stop{Code: code, To: to, Label: label, Lines: []Line{}}
 	routes, err := routesAtStop(ctx, code, now)
 	if err != nil {
 		stop.Error = err.Error()
 		return stop
+	}
+	stop.Name = stopName(routes, code)
+	if to != "" {
+		stop.ToName = stopName(routes, to)
+		var kept []route
+		for _, r := range routes {
+			if from, dest := r.seq(code), r.seq(to); from >= 0 && dest > from {
+				kept = append(kept, r)
+			}
+		}
+		if len(kept) == 0 && len(routes) > 0 {
+			stop.Error = "אף קו מתחנה " + code + " לא מגיע לתחנה " + to
+			return stop
+		}
+		routes = kept
 	}
 	if len(wanted) > 0 {
 		var kept []route
@@ -221,7 +275,7 @@ func fetchStop(ctx context.Context, code, label string, wanted []string, now tim
 					avail = append(avail, r.Line)
 				}
 			}
-			stop.Error = "no such line here; lines at this stop: " + strings.Join(avail, ",")
+			stop.Error = "הקווים בתחנה: " + strings.Join(avail, ", ")
 			return stop
 		}
 		routes = kept
@@ -263,11 +317,11 @@ func fetchStop(ctx context.Context, code, label string, wanted []string, now tim
 	return stop
 }
 
-// handleStops serves GET /stops?stop=CODE&lines=1,2&label=Home[&stop=...&lines=...&label=...].
+// handleStops serves GET /stops?stop=CODE&to=CODE&lines=1,2&label=X[&stop=...&to=...&lines=...&label=...].
 // Params pair up by position; a blank stop (an unused TRMNL slot) is skipped.
 func handleStops(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	codes, linesQ, labels := q["stop"], q["lines"], q["label"]
+	codes, tos, linesQ, labels := q["stop"], q["to"], q["lines"], q["label"]
 	at := func(s []string, i int) string {
 		if i < len(s) {
 			return strings.TrimSpace(s[i])
@@ -280,8 +334,8 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	resp := Response{Updated: now.In(israel).Format("15:04")}
 	type ask struct {
-		code, label string
-		wanted      []string
+		code, to, label string
+		wanted          []string
 	}
 	var asks []ask
 	for i := range codes {
@@ -289,8 +343,9 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 		if code == "" {
 			continue
 		}
-		if !stopCode.MatchString(code) {
-			http.Error(w, "stop must be a numeric stop code", http.StatusBadRequest)
+		to := at(tos, i)
+		if !stopCode.MatchString(code) || (to != "" && !stopCode.MatchString(to)) {
+			http.Error(w, "stop and to must be numeric stop codes", http.StatusBadRequest)
 			return
 		}
 		if len(asks) == maxStops {
@@ -303,7 +358,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 				wanted = append(wanted, l)
 			}
 		}
-		asks = append(asks, ask{code, at(labels, i), wanted})
+		asks = append(asks, ask{code, to, at(labels, i), wanted})
 	}
 	resp.Stops = make([]Stop, len(asks))
 	var wg sync.WaitGroup
@@ -311,7 +366,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp.Stops[i] = fetchStop(ctx, a.code, a.label, a.wanted, now)
+			resp.Stops[i] = fetchStop(ctx, a.code, a.to, a.label, a.wanted, now)
 		}()
 	}
 	wg.Wait()

@@ -76,13 +76,13 @@ func TestStops(t *testing.T) {
 	if got.Line != "124" || got.Operator != "מטרופולין" || strings.Contains(got.Direction, "_") {
 		t.Errorf("line: %+v", got)
 	}
-	// Negative minutes dropped, rounded, sorted soonest first.
+	// Negative minutes dropped, scheduled duplicate of a live 20:13 dropped, rounded, sorted.
 	want := []Arrival{{13, "20:13", true}, {39, "20:40", false}}
 	if len(got.Arrivals) != 2 || got.Arrivals[0] != want[0] || got.Arrivals[1] != want[1] {
 		t.Errorf("arrivals: %+v", got.Arrivals)
 	}
 
-	if work := resp.Stops[1]; !strings.Contains(work.Error, "lines at this stop: 124,155") {
+	if work := resp.Stops[1]; !strings.Contains(work.Error, "124, 155") {
 		t.Errorf("unknown line should list available lines: %+v", work)
 	}
 
@@ -91,6 +91,28 @@ func TestStops(t *testing.T) {
 	get(t, "stop=27997&lines=124")
 	if n := routeCalls.Load(); n != before {
 		t.Errorf("routes refetched despite cache: %d -> %d", before, n)
+	}
+}
+
+// testdata/routes.json: 27997 is the last stop of every route, except that
+// line 124 got a made-up stop 99999 after it.
+func TestDirection(t *testing.T) {
+	var routeCalls atomic.Int32
+	fakeUpstream(t, &routeCalls)
+	_, resp := get(t, "stop=27997&to=99999&stop=27997&to=21534")
+	toward := resp.Stops[0]
+	if toward.Error != "" || len(toward.Lines) != 1 || toward.Lines[0].Line != "124" {
+		t.Errorf("only 124 continues to 99999: %+v", toward)
+	}
+	if toward.Name == "" || toward.ToName != "תחנת בדיקה" {
+		t.Errorf("stop names: %q -> %q", toward.Name, toward.ToName)
+	}
+	// 21534 is before 27997 on 124: wrong direction, so nothing qualifies.
+	if back := resp.Stops[1]; back.Error == "" || len(back.Lines) != 0 {
+		t.Errorf("wrong direction should error: %+v", back)
+	}
+	if code, _ := get(t, "stop=27997&to=abc"); code != http.StatusBadRequest {
+		t.Errorf("non-numeric to: %d", code)
 	}
 }
 

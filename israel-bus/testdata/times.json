@@ -1,5 +1,37 @@
-{"data":{"27997":{"routeId":17175,"stopCode":27997,"stopTimes":[
- {"arrivalTime":"2026-11-03T20:13:36","arrivalTimeString":"20:13","minutesToArrival":12.71,"isRealTime":true},
- {"arrivalTime":"2026-11-03T20:01:00","arrivalTimeString":"20:01","minutesToArrival":-0.4,"isRealTime":false},
- {"arrivalTime":"2026-11-03T20:40:00","arrivalTimeString":"20:40","minutesToArrival":39.2,"isRealTime":false}
-]}},"success":true,"message":"","duration":null}
+{
+ "data": {
+  "27997": {
+   "routeId": 17175,
+   "stopCode": 27997,
+   "stopTimes": [
+    {
+     "arrivalTime": "2026-11-03T20:13:36",
+     "arrivalTimeString": "20:13",
+     "minutesToArrival": 12.71,
+     "isRealTime": true
+    },
+    {
+     "arrivalTime": "2026-11-03T20:01:00",
+     "arrivalTimeString": "20:01",
+     "minutesToArrival": -0.4,
+     "isRealTime": false
+    },
+    {
+     "arrivalTime": "2026-11-03T20:40:00",
+     "arrivalTimeString": "20:40",
+     "minutesToArrival": 39.2,
+     "isRealTime": false
+    },
+    {
+     "arrivalTime": "2026-11-03T20:13:00",
+     "arrivalTimeString": "20:13",
+     "minutesToArrival": 12.1,
+     "isRealTime": false
+    }
+   ]
+  }
+ },
+ "success": true,
+ "message": "",
+ "duration": null
+}
