@@ -1,0 +1,42 @@
+{% comment %} Renders the board once; each layout prints it. Sized by `size`. {% endcomment %}
+{% assign max_stops = 2 %}{% assign max_lines = 6 %}{% assign max_arrivals = 3 %}{% assign stacked = false %}
+{% case size %}
+  {% when 'half_horizontal' %}{% assign max_lines = 2 %}{% assign max_arrivals = 2 %}
+  {% when 'half_vertical' %}{% assign max_lines = 2 %}{% assign max_arrivals = 2 %}{% assign stacked = true %}
+  {% when 'quadrant' %}{% assign max_stops = 1 %}{% assign max_lines = 2 %}{% assign max_arrivals = 1 %}
+{% endcase %}
+{% capture board %}
+{% if error %}
+  <div class="layout layout--col justify-center h--full"><span class="label">Bus server unreachable: {{ error }}</span></div>
+{% elsif stops == nil or stops.size == 0 %}
+  <div class="layout layout--col justify-center h--full"><span class="label">Set a stop code in plugin settings</span></div>
+{% else %}
+  <div class="layout {% if stacked %}layout--col{% else %}layout--row{% endif %} layout--top gap--medium">
+  {% for stop in stops limit: max_stops %}
+    <div class="layout layout--col layout--top gap--small w--full">
+      <span class="title title--small">{{ stop.label | default: stop.code }}</span>
+      {% if stop.error %}
+        <span class="label">{{ stop.error }}</span>
+      {% elsif stop.lines.size == 0 %}
+        <span class="label">No upcoming buses</span>
+      {% else %}
+        {% for l in stop.lines limit: max_lines %}
+        <div class="item">
+          <div class="meta"></div>
+          <div class="content">
+            <span class="value value--small">{{ l.line }}</span>
+            {% unless size == 'quadrant' %}<span class="label label--small clamp--1" dir="rtl">{{ l.direction }}</span>{% endunless %}
+            <span class="label">{% for a in l.arrivals limit: max_arrivals %}{% unless a.realtime %}~{% endunless %}{{ a.at }} ({{ a.min }}′){% unless forloop.last %} · {% endunless %}{% endfor %}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+{% endif %}
+<div class="title_bar">
+  <span class="title">Buses</span>
+  <span class="instance">{% if updated %}{{ updated }} · ~ = scheduled{% endif %}</span>
+</div>
+{% endcapture %}

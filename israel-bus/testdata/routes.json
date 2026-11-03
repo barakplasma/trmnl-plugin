@@ -1,0 +1,38 @@
+{
+ "data": {
+  "routesInStop": [
+   {
+    "routeName": "124",
+    "routeDesc": "14124-2-#",
+    "headsign": {
+     "he": "תל אביב יפו_רכבת מרכז",
+     "en": "Tel Aviv - Yafo_Central Train Station",
+     "ar": "تل أبيب – يافا_قطار المركز"
+    },
+    "agencyName": "מטרופולין"
+   },
+   {
+    "routeName": "155",
+    "routeDesc": "12155-2-1",
+    "headsign": {
+     "he": "תל אביב יפו_רכבת מרכז",
+     "en": "Tel Aviv - Yafo_Central Train Station",
+     "ar": "تل أبيب – يافا_قطار المركز"
+    },
+    "agencyName": "קווים"
+   },
+   {
+    "routeName": "155",
+    "routeDesc": "12155-2-0",
+    "headsign": {
+     "he": "תל אביב יפו_רכבת מרכז",
+     "en": "Tel Aviv - Yafo_Central Train Station",
+     "ar": "تل أبيب – يافا_قطار المركز"
+    },
+    "agencyName": "קווים"
+   }
+  ],
+  "stopTimes": []
+ },
+ "success": true
+}

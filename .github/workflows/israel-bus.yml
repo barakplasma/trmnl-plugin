@@ -1,0 +1,46 @@
+name: israel-bus
+
+on:
+  push:
+    branches: [main]
+    paths: ["israel-bus/**", ".github/workflows/israel-bus.yml"]
+    tags: ["israel-bus-v*"]
+  pull_request:
+    paths: ["israel-bus/**", ".github/workflows/israel-bus.yml"]
+
+defaults:
+  run:
+    working-directory: israel-bus
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: israel-bus/go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/israel-bus-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: israel-bus/go.mod
+      - name: Build static arm64 binary and plugin zip
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o israel-bus-linux-arm64 .
+          (cd src && zip ../israel-bus-plugin.zip *.yml *.liquid)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            israel-bus/israel-bus-linux-arm64
+            israel-bus/israel-bus-plugin.zip
