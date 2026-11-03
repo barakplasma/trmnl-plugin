@@ -1,0 +1,2 @@
+{% comment %} The israel-bus service renders the whole board (Hebrew, right to left, every size); this only prints it. {% endcomment %}
+{% capture board %}{% if html %}{{ html }}{% else %}<div class="layout" dir="rtl" lang="he"><span class="label">שרת האוטובוסים לא זמין{% if error %} ({{ error }}){% endif %}</span></div>{% endif %}{% endcapture %}

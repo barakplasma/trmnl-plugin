@@ -1,5 +1,7 @@
 # Kids Age - TRMNL Plugin
 
+> This repo also holds [`israel-bus/`](israel-bus/), a bus arrivals plugin with its own Go service.
+
 A plugin for [TRMNL](https://usetrmnl.com) e-ink displays that shows your kids' ages, computed daily from their birthdays.
 
 ## Display
