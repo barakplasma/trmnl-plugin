@@ -151,7 +151,8 @@ func TestBoardHTML(t *testing.T) {
 		`dir="rtl"`,
 		"הבית&lt;b&gt;", // title from the query, escaped
 		"ת. רכבת תל אביב - סבידור ← תחנת בדיקה", // names cut at "/"
-		`<span class="label label--small">124</span>`,
+		`ib-fill">124</span>`,
+		"13 ד׳",
 		`dir="ltr">20:13</span>`,  // live
 		`dir="ltr">~20:40</span>`, // scheduled
 	} {
@@ -209,6 +210,14 @@ func TestShuttles(t *testing.T) {
 	for _, x := range d {
 		if x.At == "00:00" && x.Min < 0 {
 			t.Errorf("past time kept: %+v", x)
+		}
+	}
+}
+
+func TestPct(t *testing.T) {
+	for min, want := range map[int]int{0: 4, 30: 50, 60: 100, 200: 100} {
+		if got := (Departure{Arrival: Arrival{Min: min}}).Pct(); got != want {
+			t.Errorf("Pct(%d) = %d, want %d", min, got, want)
 		}
 	}
 }

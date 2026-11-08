@@ -138,6 +138,9 @@ type Departure struct {
 	Arrival
 }
 
+// Pct is how far out the bus is on the board's 60-minute bar, never empty so "now" still shows.
+func (d Departure) Pct() int { return max(4, min(d.Min, 60)*100/60) }
+
 // Departures merges every line's arrivals into one chronological list, capped at maxDepartures.
 func (s Stop) Departures() []Departure {
 	var out []Departure

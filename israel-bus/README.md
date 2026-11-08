@@ -50,7 +50,7 @@ Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test
 `src/` holds `settings.yml` and the Liquid templates, which just print the service's `html`
 (or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`board.html`](board.html) is its Go template.
 One payload serves every size: BYOS wraps each layout in `.view--{size}`, and CSS there stacks, trims or hides
-(full: 2 options × 9 departures; halves and quadrant: 6; quadrant: option 1 only).
+(full: 2 options × 9 departures; halves and quadrant: 3; quadrant: option 1 only).
 
 In BYOS Laravel, import the `israel-bus-plugin.zip` from a release (or a zip of `src/`), then set:
 
@@ -66,8 +66,10 @@ One instance per trip. Each trip has up to two ways to leave, e.g. a bus stop an
 | Option N: shuttle times | `16:30, 18:00, 20:00`, merged with the buses; blank stop = shuttles only |
 | Option N: label | blank uses the stop name from the API |
 
-Each option's header reads `from ← to`. The board is station-centric: each stop lists its next buses in time order, clock time big (refreshes are infrequent, so a
-clock time stays true longer than "in 5 min") with the line number just below;
+Each option's header reads `from ← to`. The board is station-centric, built for time blindness: each stop lists its next buses in time order, one ruled row per bus:
+big clock time (refreshes are infrequent, so a clock time stays true longer than "in 5 min"), line number in a badge,
+a bar for how far away it is (full = 60 min or more) and the minutes at poll time. The next bus is a black block;
+shuttles get an outlined badge instead of a filled one;
 a `~` means a scheduled time (no live GPS for that bus).
 
 TRMNL's fonts have no Hebrew, so the board loads Noto Sans Hebrew from Google Fonts. BYOS waits for the network
