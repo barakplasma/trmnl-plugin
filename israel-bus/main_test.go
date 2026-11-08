@@ -249,3 +249,19 @@ func TestRuler(t *testing.T) {
 		t.Errorf("later: %+v", later)
 	}
 }
+
+func TestShuttleSurvivesBusyStop(t *testing.T) {
+	var many []Arrival
+	for m := 1; m <= 20; m++ {
+		many = append(many, Arrival{m, "08:00", true})
+	}
+	r := Response{Stops: []Stop{{Lines: []Line{{Line: "a", Arrivals: many}}, Shuttles: []Arrival{{500, "23:59", true}}}}}
+	d := r.Stops[0].Departures()
+	if len(d) != maxDepartures+1 || d[len(d)-1].Line != shuttleLine {
+		t.Errorf("late shuttle dropped by the bus cap: %d departures, last %+v", len(d), d[len(d)-1])
+	}
+	later := r.Later()
+	if len(later) == 0 || later[len(later)-1].Line != shuttleLine {
+		t.Errorf("shuttle missing from later: %+v", later)
+	}
+}

@@ -77,7 +77,7 @@ shuttles get an outlined badge. Urgency is also a color (red, orange, green, blu
 the colors are dark so they stay readable in grayscale on e-ink;
 a `~` means a scheduled time (no live GPS for that bus).
 
-TRMNL's fonts have no Hebrew, so the board loads Noto Sans Hebrew from Google Fonts. BYOS waits for the network
+TRMNL's fonts have no Hebrew, so the board loads Noto Sans Hebrew from Google Fonts, plus Noto Color Emoji for the urgency emoji (BYOS's Alpine Chromium may have no emoji font). BYOS waits for the network
 to go idle before the screenshot (`PUPPETEER_WAIT_FOR_NETWORK_IDLE`, on by default), so the font is in place.
 
 ## Release
