@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	shuttleLine      = "שאטל" // the badge text for hand-entered departures
 	maxStops         = 4
 	maxArrivals      = 3
 	maxLines         = 6  // lines fetched per stop
@@ -186,13 +187,15 @@ func (s Stop) Departures() []Departure {
 		}
 	}
 	for _, a := range s.Shuttles {
-		add("שאטל", a)
+		add(shuttleLine, a)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
-	if len(out) > maxDepartures {
-		out = out[:maxDepartures]
-	}
-	return out
+	// Cap the buses, never the hand-entered shuttles: they are few and usually the late ones the ruler's "later" line is for.
+	n := 0
+	return slices.DeleteFunc(out, func(d Departure) bool {
+		n++
+		return d.Line != shuttleLine && n > maxDepartures
+	})
 }
 
 // all merges every stop's departures: the ruler is one timeline of when to leave, whichever stop it is.
@@ -234,10 +237,23 @@ func (r Response) Ruler() []Departure {
 	return out
 }
 
-// Later is everything the ruler didn't place (too far out, or past its cap), as plain times.
+// Later is what the ruler didn't place (too far out, or past its cap), as plain times: every shuttle (up to
+// 3), then the next buses, 4 in all, soonest first.
 func (r Response) Later() []Departure {
+	var out []Departure
 	rest := r.all()[len(r.Ruler()):]
-	return rest[:min(len(rest), 4)]
+	for _, d := range rest {
+		if d.Line == shuttleLine && len(out) < 3 {
+			out = append(out, d)
+		}
+	}
+	for _, d := range rest {
+		if d.Line != shuttleLine && len(out) < 4 {
+			out = append(out, d)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
+	return out
 }
 
 // Walks is the walking time for the ruler's header: "3", "3 / 5", or "" when none is set.

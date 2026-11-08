@@ -1,7 +1,7 @@
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&family=Noto+Color+Emoji&display=block">
 <style>
-  /* TRMNL's fonts have no Hebrew; BYOS waits for network idle, so this font is loaded before the screenshot. */
-  .ib, .ib .title, .ib .label, .ib .value, .title_bar.ib .instance { font-family: "Noto Sans Hebrew", sans-serif; }
+  /* TRMNL's fonts have no Hebrew, and BYOS's Alpine Chromium may have no emoji font; BYOS waits for network idle, so both load before the screenshot. */
+  .ib, .ib .title, .ib .label, .ib .value, .title_bar.ib .instance { font-family: "Noto Sans Hebrew", "Noto Color Emoji", sans-serif; }
   .ib-board { display: flex; flex-direction: row; align-items: stretch; gap: 16px; }
   .ib-stop { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .ib-head { align-self: stretch; text-align: right; }
