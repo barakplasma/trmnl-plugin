@@ -5,20 +5,43 @@
   .ib-board { display: flex; flex-direction: row; align-items: stretch; gap: 16px; }
   .ib-stop { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .ib-head { align-self: stretch; text-align: right; }
-  .ib-arr { display: flex; flex-wrap: wrap; gap: 0 14px; }
-  .ib-min { font-weight: 700; }
+  /* Time blindness: one row per bus, ruled apart; the next bus is a black block */
+  .ib-deps { display: flex; flex-direction: column; border-top: 3px solid #000; }
+  .ib-dep { display: flex; align-items: center; gap: 10px; padding: 3px 8px; border-bottom: 2px solid #000; color: #000; }
+  .ib-dep:first-child { color: #fff; padding: 6px 8px; gap: 8px; }
+  .ib-time { font-weight: 700; font-size: 30px; line-height: 1.1; width: 96px; flex: none; text-align: right; }
+  .ib-dep:first-child .ib-time { font-size: 40px; width: 112px; }
+  .ib-badge { flex: none; min-width: 52px; padding: 0 8px; text-align: center; font-weight: 700; font-size: 20px; line-height: 1.4; border: 3px solid currentColor; border-radius: 8px; color: inherit; }
+  .ib-badge.ib-fill { background: #000; color: #fff; }
+  .ib-dep:first-child .ib-badge.ib-fill { background: #fff; color: #000; }
+  .ib-min { flex: none; margin-inline-start: auto; font-weight: 700; font-size: 18px; min-width: 40px; text-align: left; white-space: nowrap; color: inherit; }
+  /* Color for tablets; the black/white structure below carries it on e-ink (all four are dark enough to stay readable in gray). */
+  .ib-t0 { --tc: #a50f1a; } .ib-t1 { --tc: #a14a08; } .ib-t2 { --tc: #12692b; } .ib-t3 { --tc: #1c43a8; }
+  .ib-dep:first-child, .ib-pin:first-child .ib-pt { background: var(--tc, #000); }
+  .ib-dep:not(:first-child) .ib-time, .ib-pin:not(:first-child) .ib-pt { color: var(--tc, #000); }
+  .ib-bus { flex: none; font-size: 15px; font-weight: 600; direction: ltr; opacity: .85; }
+  .ib-emo { flex: none; font-size: 26px; width: 34px; text-align: center; }
   .title_bar.ib .instance { text-align: left; }
+  /* Full layout: one ruler of when to leave, now at the right; the rows above are for the smaller sizes. */
+  .ib-ruler { display: none; flex-direction: column; gap: 6px; }
+  .view--full .ib-board { display: none; }
+  .view--full .ib-ruler { display: flex; }
+  .ib-rarea { position: relative; height: 310px; margin: 0 56px; }
+  .ib-pin { position: absolute; transform: translateX(50%); text-align: center; white-space: nowrap; line-height: 1.05; }
+  .ib-pt { display: block; font-weight: 700; font-size: 38px; padding: 0 8px; border-radius: 8px; direction: ltr; }
+  .ib-pin:first-child .ib-pt { color: #fff; }
+  .ib-pin .ib-badge { font-size: 17px; }
+  .ib-axis { position: relative; height: 6px; margin: 0 56px; background: #000; }
+  .ib-tk { position: absolute; top: -8px; width: 3px; height: 22px; background: #000; transform: translateX(50%); }
+  .ib-tl { position: absolute; top: 16px; font-size: 16px; font-weight: 700; transform: translateX(50%); white-space: nowrap; }
+  .ib-later { margin-top: 22px; font-size: 20px; font-weight: 700; }
   /* One payload serves every size; BYOS wraps each layout in .view--{size}. */
   .view--half_vertical .ib-board { flex-direction: column; }
   .view--half_vertical .ib-stop { flex: none; width: 100%; }
-  .view--quadrant .ib-stop:nth-of-type(n+2),
-  .view--quadrant .ib-dir { display: none; }
-  .view--half_horizontal .ib-line:nth-of-type(n+3),
-  .view--half_vertical .ib-line:nth-of-type(n+3),
-  .view--quadrant .ib-line:nth-of-type(n+3),
-  .view--half_horizontal .ib-a:nth-of-type(n+3),
-  .view--half_vertical .ib-a:nth-of-type(n+3),
-  .view--quadrant .ib-a:nth-of-type(n+3) { display: none; }
+  .view--quadrant .ib-stop:nth-of-type(n+2) { display: none; }
+  .view--half_horizontal .ib-dep:nth-of-type(n+4),
+  .view--half_vertical .ib-dep:nth-of-type(n+4),
+  .view--quadrant .ib-dep:nth-of-type(n+4) { display: none; }
 </style>
 <div class="layout ib ib-board" dir="rtl" lang="he">
 {{- if not .Stops}}
@@ -29,25 +52,50 @@
     <span class="title title--small clamp--1 ib-head">{{.Header}}</span>
     {{- if .Error}}
     <span class="label">{{.Error}}</span>
-    {{- else if not .Lines}}
+    {{- else if not .Departures}}
     <span class="label">אין יציאות קרובות</span>
     {{- end}}
-    {{- range .Lines}}
-    <div class="item ib-line">
-      <div class="meta"></div>
-      <div class="content">
-        <div class="flex gap--small">
-          <span class="value value--small">{{.Line}}</span>
-          <span class="label label--small clamp--1 ib-dir">ל{{.Direction}}</span>
-        </div>
-        <span class="label ib-arr">
-          {{- range .Arrivals}}<span class="ib-a" dir="rtl"><span class="ib-min">{{if eq .Min 0}}עכשיו{{else}}{{.Min}} ד׳{{end}}</span> <bdi dir="ltr">{{if not .Realtime}}~{{end}}{{.At}}</bdi></span>{{end -}}
-        </span>
+    <div class="ib-deps">
+      {{- range .Departures}}
+      <div class="ib-dep ib-t{{.Tier}}">
+        <span class="ib-emo">{{.Emoji}}</span>
+        <span class="ib-time" dir="ltr">{{if not .Realtime}}~{{end}}{{.At}}</span>
+        <span class="ib-badge{{if ne .Line "שאטל"}} ib-fill{{end}}">{{.Line}}</span>
+        {{- if ne .Bus .At}}<span class="ib-bus">🚌 {{.Bus}}</span>{{end}}
+        <span class="ib-min">{{if eq .Min 0}}עכשיו{{else}}{{.Min}} ד׳{{end}}</span>
       </div>
+      {{- end}}
     </div>
-    {{- end}}
   </div>
 {{- end}}
+</div>
+<div class="layout ib ib-ruler" dir="rtl" lang="he">
+  <span class="title title--small ib-head">🚪 לצאת מהדלת{{with .Walks}} · הליכה {{.}} ד׳{{end}}</span>
+  {{- range .Stops}}{{if .Error}}
+  <span class="label">{{.Header}}: {{.Error}}</span>
+  {{- end}}{{end}}
+  <div class="ib-rarea">
+    {{- range .Ruler}}
+    <div class="ib-pin ib-t{{.Tier}}" style="right:{{.Pos}}%;bottom:{{.Bottom}}px">
+      <span class="ib-pt">{{if not .Realtime}}~{{end}}{{.At}}</span>
+      <span class="ib-badge{{if ne .Line "שאטל"}} ib-fill{{end}}">{{.Line}}</span>
+    </div>
+    {{- else}}
+    <span class="label">אין יציאות קרובות</span>
+    {{- end}}
+  </div>
+  <div class="ib-axis">
+    <span class="ib-tk" style="right:0"></span><span class="ib-tl" dir="ltr" style="right:0">עכשיו</span>
+    <span class="ib-tk" style="right:16.67%"></span><span class="ib-tl" dir="ltr" style="right:16.67%">+10</span>
+    <span class="ib-tk" style="right:33.33%"></span><span class="ib-tl" dir="ltr" style="right:33.33%">+20</span>
+    <span class="ib-tk" style="right:50%"></span><span class="ib-tl" dir="ltr" style="right:50%">+30</span>
+    <span class="ib-tk" style="right:66.67%"></span><span class="ib-tl" dir="ltr" style="right:66.67%">+40</span>
+    <span class="ib-tk" style="right:83.33%"></span><span class="ib-tl" dir="ltr" style="right:83.33%">+50</span>
+    <span class="ib-tk" style="right:100%"></span><span class="ib-tl" dir="ltr" style="right:100%">+60</span>
+  </div>
+  {{- with .Later}}
+  <div class="ib-later">אחר כך: {{range .}}<span dir="ltr">{{.At}}</span> {{.Line}} &nbsp;{{end}}</div>
+  {{- end}}
 </div>
 <div class="title_bar ib" dir="rtl" lang="he">
   <span class="title">{{.Title}}</span>

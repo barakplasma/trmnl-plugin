@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +28,13 @@ import (
 const (
 	maxStops         = 4
 	maxArrivals      = 3
-	maxLines         = 6  // what fits the full layout; smaller sizes hide more via CSS
+	maxLines         = 6  // lines fetched per stop
+	rulerSpan        = 60 // minutes the full layout's ruler covers
+	rulerLevels      = 5
+	rulerPitch       = 62 // px per ruler row
+	rulerGap         = 15 // percent of the axis two big times on one row need apart
+	maxRuler         = 8
+	maxDepartures    = 9  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
 	maxConcurrent    = 5
 	routesTTL        = time.Hour
@@ -38,6 +45,7 @@ var (
 	apiBase  = "https://api.bus.gov.il/prod/mot-scheduler-prod/api/he"
 	israel   = mustTZ("Asia/Jerusalem")
 	stopCode = regexp.MustCompile(`^\d{1,6}$`)
+	clockHM  = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
 	client   = &http.Client{Timeout: 8 * time.Second}
 
 	cacheMu sync.Mutex
@@ -97,7 +105,11 @@ type Stop struct {
 	ToName string `json:"to_name,omitempty"`
 	Label  string `json:"label"`
 	Lines  []Line `json:"lines"`
-	Error  string `json:"error,omitempty"`
+	// Shuttles are hand-entered departures (no web source), merged into Departures.
+	Shuttles []Arrival `json:"shuttles,omitempty"`
+	// Walk is minutes from the door to this stop; Departures are shown as when to leave, not when the bus comes.
+	Walk  int    `json:"walk,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type Response struct {
@@ -126,6 +138,136 @@ func (s Stop) Header() string {
 		h += " ← " + to
 	}
 	return h
+}
+
+// Departure is one bus at a stop, as when to leave the door: At and Min already have the walk taken off.
+type Departure struct {
+	Line string
+	Arrival
+	Bus        string // the bus's own clock time, before the walk is taken off
+	Pos, Level int    // ruler placement, set by Response.Ruler
+}
+
+// Tier is how urgent leaving is: 0 now, 1 soon, 2 there's time, 3 plenty. It picks the emoji and the color.
+func (d Departure) Tier() int {
+	switch {
+	case d.Min <= 1:
+		return 0
+	case d.Min <= 5:
+		return 1
+	case d.Min <= 20:
+		return 2
+	}
+	return 3
+}
+
+func (d Departure) Emoji() string { return [...]string{"🏃", "🚶", "☕", "🛋️"}[d.Tier()] }
+
+// Bottom is the ruler label's height above the axis in px.
+func (d Departure) Bottom() int { return d.Level * rulerPitch }
+
+// Departures merges every line's arrivals and shuttles into one chronological list of leave times
+// (arrival minus Walk; buses you can no longer reach on foot are dropped), capped at maxDepartures.
+func (s Stop) Departures() []Departure {
+	var out []Departure
+	add := func(line string, a Arrival) {
+		bus := a.At
+		if a.Min -= s.Walk; a.Min < 0 {
+			return
+		}
+		if t, err := time.Parse("15:04", a.At); err == nil {
+			a.At = t.Add(-time.Duration(s.Walk) * time.Minute).Format("15:04")
+		}
+		out = append(out, Departure{Line: line, Arrival: a, Bus: bus})
+	}
+	for _, l := range s.Lines {
+		for _, a := range l.Arrivals {
+			add(l.Line, a)
+		}
+	}
+	for _, a := range s.Shuttles {
+		add("שאטל", a)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
+	if len(out) > maxDepartures {
+		out = out[:maxDepartures]
+	}
+	return out
+}
+
+// all merges every stop's departures: the ruler is one timeline of when to leave, whichever stop it is.
+func (r Response) all() []Departure {
+	var out []Departure
+	for _, s := range r.Stops {
+		out = append(out, s.Departures()...)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
+	return out
+}
+
+// Ruler places the departures within rulerSpan minutes on a 0-100 axis, in as few rows as keep the big times apart.
+// shortcut: gives up and overlaps after rulerLevels rows, when a busy stop crowds one spot.
+func (r Response) Ruler() []Departure {
+	var out []Departure
+	var last [rulerLevels]int
+	for i := range last {
+		last[i] = -100
+	}
+	for _, d := range r.all() {
+		if d.Min > rulerSpan || len(out) == maxRuler {
+			break
+		}
+		d.Pos = d.Min * 100 / rulerSpan
+		best := 0
+		for l := range last {
+			if d.Pos-last[l] >= rulerGap {
+				best = l
+				break
+			}
+			if d.Pos-last[l] > d.Pos-last[best] {
+				best = l
+			}
+		}
+		last[best], d.Level = d.Pos, best
+		out = append(out, d)
+	}
+	return out
+}
+
+// Later is everything the ruler didn't place (too far out, or past its cap), as plain times.
+func (r Response) Later() []Departure {
+	rest := r.all()[len(r.Ruler()):]
+	return rest[:min(len(rest), 4)]
+}
+
+// Walks is the walking time for the ruler's header: "3", "3 / 5", or "" when none is set.
+func (r Response) Walks() string {
+	var w []string
+	for _, s := range r.Stops {
+		if v := fmt.Sprint(s.Walk); s.Walk > 0 && !slices.Contains(w, v) {
+			w = append(w, v)
+		}
+	}
+	return strings.Join(w, " / ")
+}
+
+// shuttleTimes turns "16:30, 18:00" into today's remaining departures (Israel time).
+// Fixed times, so they count as exact (Realtime), not "~". shortcut: today only, nothing after midnight.
+func shuttleTimes(list string, now time.Time) ([]Arrival, error) {
+	local := now.In(israel)
+	var out []Arrival
+	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if !clockHM.MatchString(f) {
+			return nil, fmt.Errorf("shuttle time %q is not HH:MM", f)
+		}
+		var h, m int
+		fmt.Sscanf(f, "%d:%d", &h, &m)
+		t := time.Date(local.Year(), local.Month(), local.Day(), h, m, 0, 0, israel)
+		if min := int(t.Sub(local).Minutes() + 0.5); min >= 0 {
+			out = append(out, Arrival{min, t.Format("15:04"), true})
+		}
+	}
+	return out, nil
 }
 
 func mustTZ(name string) *time.Location {
@@ -265,6 +407,9 @@ func routeTimes(ctx context.Context, code, desc string) ([]Arrival, error) {
 // wanted filters by line number ("1" does not match "1א"); empty means all.
 func fetchStop(ctx context.Context, code, to, label string, wanted []string, now time.Time) Stop {
 	stop := Stop{Code: code, To: to, Label: label, Lines: []Line{}}
+	if code == "" { // a shuttle-only option
+		return stop
+	}
 	routes, err := routesAtStop(ctx, code, now)
 	if err != nil {
 		stop.Error = err.Error()
@@ -347,11 +492,11 @@ func fetchStop(ctx context.Context, code, to, label string, wanted []string, now
 	return stop
 }
 
-// handleStops serves GET /stops?title=T&stop=CODE&to=CODE&lines=1,2&label=X[&stop=...&to=...&lines=...&label=...].
+// handleStops serves GET /stops?title=T&stop=CODE&to=CODE&lines=1,2&label=X[&shuttle=16:30,18:00&walk=3&stop=...].
 // Params pair up by position; a blank stop (an unused TRMNL slot) is skipped.
 func handleStops(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	codes, tos, linesQ, labels := q["stop"], q["to"], q["lines"], q["label"]
+	codes, tos, linesQ, labels, shuttles, walks := q["stop"], q["to"], q["lines"], q["label"], q["shuttle"], q["walk"]
 	at := func(s []string, i int) string {
 		if i < len(s) {
 			return strings.TrimSpace(s[i])
@@ -369,15 +514,29 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	type ask struct {
 		code, to, label string
 		wanted          []string
+		shuttle         []Arrival
+		walk            int
 	}
 	var asks []ask
 	for i := range codes {
 		code := at(codes, i)
-		if code == "" {
+		shuttle, err := shuttleTimes(at(shuttles, i), now)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if code == "" && at(shuttles, i) == "" {
 			continue
 		}
+		walk := 0
+		if ws := at(walks, i); ws != "" {
+			if walk, err = strconv.Atoi(ws); err != nil || walk < 0 || walk > 60 {
+				http.Error(w, "walk must be 0-60 minutes", http.StatusBadRequest)
+				return
+			}
+		}
 		to := at(tos, i)
-		if !stopCode.MatchString(code) || (to != "" && !stopCode.MatchString(to)) {
+		if (code != "" && !stopCode.MatchString(code)) || (to != "" && !stopCode.MatchString(to)) {
 			http.Error(w, "stop and to must be numeric stop codes", http.StatusBadRequest)
 			return
 		}
@@ -391,7 +550,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 				wanted = append(wanted, l)
 			}
 		}
-		asks = append(asks, ask{code, to, at(labels, i), wanted})
+		asks = append(asks, ask{code, to, at(labels, i), wanted, shuttle, walk})
 	}
 	resp.Stops = make([]Stop, len(asks))
 	var wg sync.WaitGroup
@@ -400,6 +559,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer wg.Done()
 			resp.Stops[i] = fetchStop(ctx, a.code, a.to, a.label, a.wanted, now)
+			resp.Stops[i].Shuttles, resp.Stops[i].Walk = a.shuttle, a.walk
 		}()
 	}
 	wg.Wait()
