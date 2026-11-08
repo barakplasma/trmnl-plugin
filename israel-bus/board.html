@@ -5,20 +5,17 @@
   .ib-board { display: flex; flex-direction: row; align-items: stretch; gap: 16px; }
   .ib-stop { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .ib-head { align-self: stretch; text-align: right; }
-  .ib-arr { display: flex; flex-wrap: wrap; gap: 0 14px; }
-  .ib-min { font-weight: 700; }
+  .ib-deps { display: flex; flex-wrap: wrap; gap: 10px 0; }
+  .ib-dep { flex: 0 0 33.33%; display: flex; flex-direction: column; align-items: center; }
+  .ib-time { font-weight: 700; font-size: 34px; line-height: 1.1; }
   .title_bar.ib .instance { text-align: left; }
   /* One payload serves every size; BYOS wraps each layout in .view--{size}. */
   .view--half_vertical .ib-board { flex-direction: column; }
   .view--half_vertical .ib-stop { flex: none; width: 100%; }
-  .view--quadrant .ib-stop:nth-of-type(n+2),
-  .view--quadrant .ib-dir { display: none; }
-  .view--half_horizontal .ib-line:nth-of-type(n+3),
-  .view--half_vertical .ib-line:nth-of-type(n+3),
-  .view--quadrant .ib-line:nth-of-type(n+3),
-  .view--half_horizontal .ib-a:nth-of-type(n+3),
-  .view--half_vertical .ib-a:nth-of-type(n+3),
-  .view--quadrant .ib-a:nth-of-type(n+3) { display: none; }
+  .view--quadrant .ib-stop:nth-of-type(n+2) { display: none; }
+  .view--half_horizontal .ib-dep:nth-of-type(n+4),
+  .view--half_vertical .ib-dep:nth-of-type(n+4),
+  .view--quadrant .ib-dep:nth-of-type(n+4) { display: none; }
 </style>
 <div class="layout ib ib-board" dir="rtl" lang="he">
 {{- if not .Stops}}
@@ -32,20 +29,14 @@
     {{- else if not .Lines}}
     <span class="label">אין יציאות קרובות</span>
     {{- end}}
-    {{- range .Lines}}
-    <div class="item ib-line">
-      <div class="meta"></div>
-      <div class="content">
-        <div class="flex gap--small">
-          <span class="value value--small">{{.Line}}</span>
-          <span class="label label--small clamp--1 ib-dir">ל{{.Direction}}</span>
-        </div>
-        <span class="label ib-arr">
-          {{- range .Arrivals}}<span class="ib-a" dir="rtl"><span class="ib-min">{{if eq .Min 0}}עכשיו{{else}}{{.Min}} ד׳{{end}}</span> <bdi dir="ltr">{{if not .Realtime}}~{{end}}{{.At}}</bdi></span>{{end -}}
-        </span>
+    <div class="ib-deps">
+      {{- range .Departures}}
+      <div class="ib-dep">
+        <span class="value ib-time" dir="ltr">{{if not .Realtime}}~{{end}}{{.At}}</span>
+        <span class="label label--small">{{.Line}}</span>
       </div>
+      {{- end}}
     </div>
-    {{- end}}
   </div>
 {{- end}}
 </div>

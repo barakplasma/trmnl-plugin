@@ -151,9 +151,9 @@ func TestBoardHTML(t *testing.T) {
 		`dir="rtl"`,
 		"הבית&lt;b&gt;", // title from the query, escaped
 		"ת. רכבת תל אביב - סבידור ← תחנת בדיקה", // names cut at "/"
-		`<span class="value value--small">124</span>`,
-		"13 ד׳", `<bdi dir="ltr">20:13</bdi>`, // live
-		`<bdi dir="ltr">~20:40</bdi>`, // scheduled
+		`<span class="label label--small">124</span>`,
+		`dir="ltr">20:13</span>`,  // live
+		`dir="ltr">~20:40</span>`, // scheduled
 	} {
 		if !strings.Contains(h, want) {
 			t.Errorf("html missing %q", want)
@@ -177,5 +177,16 @@ func TestHeader(t *testing.T) {
 		if got := c.s.Header(); got != c.want {
 			t.Errorf("%+v: got %q want %q", c.s, got, c.want)
 		}
+	}
+}
+
+func TestDepartures(t *testing.T) {
+	s := Stop{Lines: []Line{
+		{Line: "a", Arrivals: []Arrival{{5, "08:05", true}, {30, "08:30", false}}},
+		{Line: "b", Arrivals: []Arrival{{12, "08:12", true}}},
+	}}
+	d := s.Departures()
+	if len(d) != 3 || d[0].Line != "a" || d[1].Line != "b" || d[2].At != "08:30" {
+		t.Errorf("want a,b,a by time: %+v", d)
 	}
 }

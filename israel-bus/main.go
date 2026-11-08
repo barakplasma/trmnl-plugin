@@ -27,7 +27,8 @@ import (
 const (
 	maxStops         = 4
 	maxArrivals      = 3
-	maxLines         = 6  // what fits the full layout; smaller sizes hide more via CSS
+	maxLines         = 6  // lines fetched per stop
+	maxDepartures    = 6  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
 	maxConcurrent    = 5
 	routesTTL        = time.Hour
@@ -126,6 +127,27 @@ func (s Stop) Header() string {
 		h += " ← " + to
 	}
 	return h
+}
+
+// Departure is one bus at a stop, for the station-centric board: the clock time leads, the line is secondary.
+type Departure struct {
+	Line string
+	Arrival
+}
+
+// Departures merges every line's arrivals into one chronological list, capped at maxDepartures.
+func (s Stop) Departures() []Departure {
+	var out []Departure
+	for _, l := range s.Lines {
+		for _, a := range l.Arrivals {
+			out = append(out, Departure{l.Line, a})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
+	if len(out) > maxDepartures {
+		out = out[:maxDepartures]
+	}
+	return out
 }
 
 func mustTZ(name string) *time.Location {
