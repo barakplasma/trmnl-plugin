@@ -221,3 +221,39 @@ func TestPct(t *testing.T) {
 		}
 	}
 }
+
+func TestWalk(t *testing.T) {
+	var routeCalls atomic.Int32
+	fakeUpstream(t, &routeCalls)
+	// Fixture 124: 13 min (20:13), 39 min (20:40). A 20 minute walk leaves only the second, as 19 min / 20:20.
+	_, resp := get(t, "stop=27997&lines=124&walk=20")
+	d := resp.Stops[0].Departures()
+	if len(d) != 1 || d[0].Min != 19 || d[0].At != "20:20" {
+		t.Errorf("walk 20: %+v", d)
+	}
+	if code, _ := get(t, "stop=27997&walk=x"); code != http.StatusBadRequest {
+		t.Errorf("bad walk: %d", code)
+	}
+	if w := (Response{Stops: []Stop{{Walk: 3}, {Walk: 5}, {Walk: 3}, {}}}).Walks(); w != "3 / 5" {
+		t.Errorf("walks: %q", w)
+	}
+}
+
+func TestRuler(t *testing.T) {
+	arr := func(ms ...int) []Arrival {
+		var a []Arrival
+		for _, m := range ms {
+			a = append(a, Arrival{m, "08:00", true})
+		}
+		return a
+	}
+	r := Response{Stops: []Stop{{Walk: 3, Lines: []Line{{Line: "a", Arrivals: arr(2, 4, 5)}, {Line: "b", Arrivals: arr(6, 70)}}}}}
+	got := r.Ruler()
+	// 2 min is unreachable (walk 3); the three at 1, 2 and 3 min sit within 15% of each other, so each takes its own row.
+	if len(got) != 3 || got[0].Min != 1 || got[0].Level == got[1].Level || got[1].Level == got[2].Level || got[0].Level == got[2].Level {
+		t.Errorf("ruler: %+v", got)
+	}
+	if later := r.Later(); len(later) != 1 || later[0].Min != 67 {
+		t.Errorf("later: %+v", later)
+	}
+}

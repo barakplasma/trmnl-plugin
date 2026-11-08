@@ -30,7 +30,7 @@ GET /healthz
 
 `stop`, `to`, `lines` and `label` pair up by position and repeat, up to 4 stops. A blank `stop` is skipped.
 `to` keeps only lines that reach that stop after `stop`, which picks the direction for you.
-`shuttle=16:30,18:00,20:00` adds hand-entered departures (shown as "שאטל", exact times, today only). Leave `stop` blank for a shuttle-only option.
+`walk=3` is minutes from the door to the stop (0-60); times come back as leave times. `shuttle=16:30,18:00,20:00` adds hand-entered departures (shown as "שאטל", exact times, today only). Leave `stop` blank for a shuttle-only option.
 `lines` is comma-separated and matched exactly (`1` is not `1א`); blank means all lines (capped at 12).
 
 ```json
@@ -50,7 +50,7 @@ Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test
 `src/` holds `settings.yml` and the Liquid templates, which just print the service's `html`
 (or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`board.html`](board.html) is its Go template.
 One payload serves every size: BYOS wraps each layout in `.view--{size}`, and CSS there stacks, trims or hides
-(full: 2 options × 9 departures; halves and quadrant: 3; quadrant: option 1 only).
+(full: the ruler; halves and quadrant: 3 rows per stop; quadrant: option 1 only).
 
 In BYOS Laravel, import the `israel-bus-plugin.zip` from a release (or a zip of `src/`), then set:
 
@@ -63,13 +63,17 @@ One instance per trip. Each trip has up to two ways to leave, e.g. a bus stop an
 | Option N: board at stop | `27997`, the number on the stop sign |
 | Option N: get off at stop | a stop code; only lines that reach it are shown |
 | Option N: lines | `124,155` (blank = all) |
+| Option N: walk to the stop (minutes) | `3`; blank or 0 shows plain bus times |
 | Option N: shuttle times | `16:30, 18:00, 20:00`, merged with the buses; blank stop = shuttles only |
 | Option N: label | blank uses the stop name from the API |
 
-Each option's header reads `from ← to`. The board is station-centric, built for time blindness: each stop lists its next buses in time order, one ruled row per bus:
-big clock time (refreshes are infrequent, so a clock time stays true longer than "in 5 min"), line number in a badge,
-a bar for how far away it is (full = 60 min or more) and the minutes at poll time. The next bus is a black block;
-shuttles get an outlined badge instead of a filled one;
+Each option's header reads `from ← to`. The board shows when to **leave the door**, not when the bus comes: each option has a walking time, and every time shown
+is the bus time minus it (buses you can no longer reach on foot are hidden). Refreshes are infrequent, so clock times stay
+true longer than "in 5 min".
+The full layout is one ruler: the next hour of leave times, now at the right, as big times with the line in a badge below
+(the next one is a black block). Anything past the hour, or past 8 labels, goes in an "אחר כך" line.
+The smaller layouts are rows per stop: an emoji for urgency (🏃 now, 🚶 soon, ☕ time, 🛋️ plenty), the leave time, the line, a bar for how far out it is and the minutes;
+shuttles get an outlined badge;
 a `~` means a scheduled time (no live GPS for that bus).
 
 TRMNL's fonts have no Hebrew, so the board loads Noto Sans Hebrew from Google Fonts. BYOS waits for the network
