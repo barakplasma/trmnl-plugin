@@ -72,8 +72,9 @@ is the bus time minus it (buses you can no longer reach on foot are hidden). Ref
 true longer than "in 5 min".
 The full layout is one ruler: the next hour of leave times, now at the right, as big times with the line in a badge below
 (the next one is a black block). Anything past the hour, or past 8 labels, goes in an "אחר כך" line.
-The smaller layouts are rows per stop: an emoji for urgency (🏃 now, 🚶 soon, ☕ time, 🛋️ plenty), the leave time, the line, a bar for how far out it is and the minutes;
-shuttles get an outlined badge;
+The smaller layouts are rows per stop: an emoji for urgency (🏃 now, 🚶 soon, ☕ time, 🛋️ plenty), the leave time, the line, the bus's own time (🚌, hidden when there is no walk) and the minutes until leaving;
+shuttles get an outlined badge. Urgency is also a color (red, orange, green, blue) for color screens such as Android tablets;
+the colors are dark so they stay readable in grayscale on e-ink;
 a `~` means a scheduled time (no live GPS for that bus).
 
 TRMNL's fonts have no Hebrew, so the board loads Noto Sans Hebrew from Google Fonts. BYOS waits for the network

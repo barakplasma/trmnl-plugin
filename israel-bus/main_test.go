@@ -214,21 +214,13 @@ func TestShuttles(t *testing.T) {
 	}
 }
 
-func TestPct(t *testing.T) {
-	for min, want := range map[int]int{0: 4, 30: 50, 60: 100, 200: 100} {
-		if got := (Departure{Arrival: Arrival{Min: min}}).Pct(); got != want {
-			t.Errorf("Pct(%d) = %d, want %d", min, got, want)
-		}
-	}
-}
-
 func TestWalk(t *testing.T) {
 	var routeCalls atomic.Int32
 	fakeUpstream(t, &routeCalls)
 	// Fixture 124: 13 min (20:13), 39 min (20:40). A 20 minute walk leaves only the second, as 19 min / 20:20.
 	_, resp := get(t, "stop=27997&lines=124&walk=20")
 	d := resp.Stops[0].Departures()
-	if len(d) != 1 || d[0].Min != 19 || d[0].At != "20:20" {
+	if len(d) != 1 || d[0].Min != 19 || d[0].At != "20:20" || d[0].Bus != "20:40" {
 		t.Errorf("walk 20: %+v", d)
 	}
 	if code, _ := get(t, "stop=27997&walk=x"); code != http.StatusBadRequest {

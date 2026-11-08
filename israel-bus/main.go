@@ -144,24 +144,24 @@ func (s Stop) Header() string {
 type Departure struct {
 	Line string
 	Arrival
-	Pos, Level int // ruler placement, set by Response.Ruler
+	Bus        string // the bus's own clock time, before the walk is taken off
+	Pos, Level int    // ruler placement, set by Response.Ruler
 }
 
-// Pct is how far out the bus is on the rows' 60-minute bar, never empty so "now" still shows.
-func (d Departure) Pct() int { return max(4, min(d.Min, 60)*100/60) }
-
-// Emoji says how urgent leaving is at a glance.
-func (d Departure) Emoji() string {
+// Tier is how urgent leaving is: 0 now, 1 soon, 2 there's time, 3 plenty. It picks the emoji and the color.
+func (d Departure) Tier() int {
 	switch {
 	case d.Min <= 1:
-		return "🏃"
+		return 0
 	case d.Min <= 5:
-		return "🚶"
+		return 1
 	case d.Min <= 20:
-		return "☕"
+		return 2
 	}
-	return "🛋️"
+	return 3
 }
+
+func (d Departure) Emoji() string { return [...]string{"🏃", "🚶", "☕", "🛋️"}[d.Tier()] }
 
 // Bottom is the ruler label's height above the axis in px.
 func (d Departure) Bottom() int { return d.Level * rulerPitch }
@@ -171,13 +171,14 @@ func (d Departure) Bottom() int { return d.Level * rulerPitch }
 func (s Stop) Departures() []Departure {
 	var out []Departure
 	add := func(line string, a Arrival) {
+		bus := a.At
 		if a.Min -= s.Walk; a.Min < 0 {
 			return
 		}
 		if t, err := time.Parse("15:04", a.At); err == nil {
 			a.At = t.Add(-time.Duration(s.Walk) * time.Minute).Format("15:04")
 		}
-		out = append(out, Departure{Line: line, Arrival: a})
+		out = append(out, Departure{Line: line, Arrival: a, Bus: bus})
 	}
 	for _, l := range s.Lines {
 		for _, a := range l.Arrivals {
