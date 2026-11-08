@@ -190,3 +190,25 @@ func TestDepartures(t *testing.T) {
 		t.Errorf("want a,b,a by time: %+v", d)
 	}
 }
+
+func TestShuttles(t *testing.T) {
+	var routeCalls atomic.Int32
+	fakeUpstream(t, &routeCalls)
+	// A shuttle-only option (blank stop) is kept; times already past today are dropped.
+	if code, _ := get(t, "stop=&shuttle=25:00"); code != http.StatusBadRequest {
+		t.Errorf("bad time: %d", code)
+	}
+	_, resp := get(t, "label=Work&stop=&shuttle=00:00,23:59")
+	if len(resp.Stops) != 1 {
+		t.Fatalf("shuttle-only option dropped: %+v", resp.Stops)
+	}
+	d := resp.Stops[0].Departures()
+	if len(d) == 0 || d[len(d)-1].At != "23:59" || d[len(d)-1].Line != "שאטל" || !d[len(d)-1].Realtime {
+		t.Errorf("departures: %+v", d)
+	}
+	for _, x := range d {
+		if x.At == "00:00" && x.Min < 0 {
+			t.Errorf("past time kept: %+v", x)
+		}
+	}
+}

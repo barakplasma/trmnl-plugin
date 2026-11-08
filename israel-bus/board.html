@@ -13,9 +13,9 @@
   .view--half_vertical .ib-board { flex-direction: column; }
   .view--half_vertical .ib-stop { flex: none; width: 100%; }
   .view--quadrant .ib-stop:nth-of-type(n+2) { display: none; }
-  .view--half_horizontal .ib-dep:nth-of-type(n+4),
-  .view--half_vertical .ib-dep:nth-of-type(n+4),
-  .view--quadrant .ib-dep:nth-of-type(n+4) { display: none; }
+  .view--half_horizontal .ib-dep:nth-of-type(n+7),
+  .view--half_vertical .ib-dep:nth-of-type(n+7),
+  .view--quadrant .ib-dep:nth-of-type(n+7) { display: none; }
 </style>
 <div class="layout ib ib-board" dir="rtl" lang="he">
 {{- if not .Stops}}
@@ -26,7 +26,7 @@
     <span class="title title--small clamp--1 ib-head">{{.Header}}</span>
     {{- if .Error}}
     <span class="label">{{.Error}}</span>
-    {{- else if not .Lines}}
+    {{- else if not .Departures}}
     <span class="label">אין יציאות קרובות</span>
     {{- end}}
     <div class="ib-deps">

@@ -30,6 +30,7 @@ GET /healthz
 
 `stop`, `to`, `lines` and `label` pair up by position and repeat, up to 4 stops. A blank `stop` is skipped.
 `to` keeps only lines that reach that stop after `stop`, which picks the direction for you.
+`shuttle=16:30,18:00,20:00` adds hand-entered departures (shown as "שאטל", exact times, today only). Leave `stop` blank for a shuttle-only option.
 `lines` is comma-separated and matched exactly (`1` is not `1א`); blank means all lines (capped at 12).
 
 ```json
@@ -49,7 +50,7 @@ Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test
 `src/` holds `settings.yml` and the Liquid templates, which just print the service's `html`
 (or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`board.html`](board.html) is its Go template.
 One payload serves every size: BYOS wraps each layout in `.view--{size}`, and CSS there stacks, trims or hides
-(full: 2 options × 6 departures; halves: 3 departures; quadrant: option 1 only).
+(full: 2 options × 9 departures; halves and quadrant: 6; quadrant: option 1 only).
 
 In BYOS Laravel, import the `israel-bus-plugin.zip` from a release (or a zip of `src/`), then set:
 
@@ -62,6 +63,7 @@ One instance per trip. Each trip has up to two ways to leave, e.g. a bus stop an
 | Option N: board at stop | `27997`, the number on the stop sign |
 | Option N: get off at stop | a stop code; only lines that reach it are shown |
 | Option N: lines | `124,155` (blank = all) |
+| Option N: shuttle times | `16:30, 18:00, 20:00`, merged with the buses; blank stop = shuttles only |
 | Option N: label | blank uses the stop name from the API |
 
 Each option's header reads `from ← to`. The board is station-centric: each stop lists its next buses in time order, clock time big (refreshes are infrequent, so a

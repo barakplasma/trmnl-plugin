@@ -28,7 +28,7 @@ const (
 	maxStops         = 4
 	maxArrivals      = 3
 	maxLines         = 6  // lines fetched per stop
-	maxDepartures    = 6  // what fits the full layout; smaller sizes hide more via CSS
+	maxDepartures    = 9  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
 	maxConcurrent    = 5
 	routesTTL        = time.Hour
@@ -39,6 +39,7 @@ var (
 	apiBase  = "https://api.bus.gov.il/prod/mot-scheduler-prod/api/he"
 	israel   = mustTZ("Asia/Jerusalem")
 	stopCode = regexp.MustCompile(`^\d{1,6}$`)
+	clockHM  = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
 	client   = &http.Client{Timeout: 8 * time.Second}
 
 	cacheMu sync.Mutex
@@ -98,7 +99,9 @@ type Stop struct {
 	ToName string `json:"to_name,omitempty"`
 	Label  string `json:"label"`
 	Lines  []Line `json:"lines"`
-	Error  string `json:"error,omitempty"`
+	// Shuttles are hand-entered departures (no web source), merged into Departures.
+	Shuttles []Arrival `json:"shuttles,omitempty"`
+	Error    string    `json:"error,omitempty"`
 }
 
 type Response struct {
@@ -143,11 +146,33 @@ func (s Stop) Departures() []Departure {
 			out = append(out, Departure{l.Line, a})
 		}
 	}
+	for _, a := range s.Shuttles {
+		out = append(out, Departure{"שאטל", a})
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
 	if len(out) > maxDepartures {
 		out = out[:maxDepartures]
 	}
 	return out
+}
+
+// shuttleTimes turns "16:30, 18:00" into today's remaining departures (Israel time).
+// Fixed times, so they count as exact (Realtime), not "~". shortcut: today only, nothing after midnight.
+func shuttleTimes(list string, now time.Time) ([]Arrival, error) {
+	local := now.In(israel)
+	var out []Arrival
+	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if !clockHM.MatchString(f) {
+			return nil, fmt.Errorf("shuttle time %q is not HH:MM", f)
+		}
+		var h, m int
+		fmt.Sscanf(f, "%d:%d", &h, &m)
+		t := time.Date(local.Year(), local.Month(), local.Day(), h, m, 0, 0, israel)
+		if min := int(t.Sub(local).Minutes() + 0.5); min >= 0 {
+			out = append(out, Arrival{min, t.Format("15:04"), true})
+		}
+	}
+	return out, nil
 }
 
 func mustTZ(name string) *time.Location {
@@ -287,6 +312,9 @@ func routeTimes(ctx context.Context, code, desc string) ([]Arrival, error) {
 // wanted filters by line number ("1" does not match "1א"); empty means all.
 func fetchStop(ctx context.Context, code, to, label string, wanted []string, now time.Time) Stop {
 	stop := Stop{Code: code, To: to, Label: label, Lines: []Line{}}
+	if code == "" { // a shuttle-only option
+		return stop
+	}
 	routes, err := routesAtStop(ctx, code, now)
 	if err != nil {
 		stop.Error = err.Error()
@@ -369,11 +397,11 @@ func fetchStop(ctx context.Context, code, to, label string, wanted []string, now
 	return stop
 }
 
-// handleStops serves GET /stops?title=T&stop=CODE&to=CODE&lines=1,2&label=X[&stop=...&to=...&lines=...&label=...].
+// handleStops serves GET /stops?title=T&stop=CODE&to=CODE&lines=1,2&label=X[&shuttle=16:30,18:00&stop=...].
 // Params pair up by position; a blank stop (an unused TRMNL slot) is skipped.
 func handleStops(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	codes, tos, linesQ, labels := q["stop"], q["to"], q["lines"], q["label"]
+	codes, tos, linesQ, labels, shuttles := q["stop"], q["to"], q["lines"], q["label"], q["shuttle"]
 	at := func(s []string, i int) string {
 		if i < len(s) {
 			return strings.TrimSpace(s[i])
@@ -391,15 +419,21 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	type ask struct {
 		code, to, label string
 		wanted          []string
+		shuttle         []Arrival
 	}
 	var asks []ask
 	for i := range codes {
 		code := at(codes, i)
-		if code == "" {
+		shuttle, err := shuttleTimes(at(shuttles, i), now)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if code == "" && at(shuttles, i) == "" {
 			continue
 		}
 		to := at(tos, i)
-		if !stopCode.MatchString(code) || (to != "" && !stopCode.MatchString(to)) {
+		if (code != "" && !stopCode.MatchString(code)) || (to != "" && !stopCode.MatchString(to)) {
 			http.Error(w, "stop and to must be numeric stop codes", http.StatusBadRequest)
 			return
 		}
@@ -413,7 +447,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 				wanted = append(wanted, l)
 			}
 		}
-		asks = append(asks, ask{code, to, at(labels, i), wanted})
+		asks = append(asks, ask{code, to, at(labels, i), wanted, shuttle})
 	}
 	resp.Stops = make([]Stop, len(asks))
 	var wg sync.WaitGroup
@@ -422,6 +456,7 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer wg.Done()
 			resp.Stops[i] = fetchStop(ctx, a.code, a.to, a.label, a.wanted, now)
+			resp.Stops[i].Shuttles = a.shuttle
 		}()
 	}
 	wg.Wait()
