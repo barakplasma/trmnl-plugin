@@ -269,3 +269,18 @@ func TestShuttleSeparators(t *testing.T) {
 		t.Fatalf("want 3 shuttles, got %+v, %v", got, err)
 	}
 }
+
+func TestRulerMergesSameMinute(t *testing.T) {
+	r := Response{Stops: []Stop{{Lines: []Line{
+		{Line: "a", Arrivals: []Arrival{{5, "08:05", true}}},
+		{Line: "b", Arrivals: []Arrival{{5, "08:05", true}}},
+		{Line: "c", Arrivals: []Arrival{{5, "08:05", false}, {50, "08:50", true}}},
+	}}}}
+	got := r.Ruler()
+	if len(got) != 1 || len(got[0].More) != 2 {
+		t.Fatalf("want one pin with 2 more lines, got %+v", got)
+	}
+	if later := r.Later(); len(later) != 1 || later[0].Min != 50 {
+		t.Errorf("later: %+v", later)
+	}
+}

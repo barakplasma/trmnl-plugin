@@ -29,9 +29,10 @@ const (
 	maxArrivals      = 3
 	maxLines         = 6  // lines fetched per stop
 	rulerSpan        = 30 // minutes the full layout's ruler covers
-	rulerLevels      = 6
-	rulerPitch       = 52 // px per ruler row
+	rulerLevels      = 5
+	rulerPitch       = 60 // px per ruler row
 	rulerGap         = 15 // percent of the axis two big times on one row need apart
+	rulerExtra       = 9  // more percent per extra badge on a merged pin
 	maxRuler         = 10
 	maxDepartures    = 9  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
@@ -158,9 +159,10 @@ func (s Stop) Header() string {
 type Departure struct {
 	Line string `json:"line"`
 	Arrival
-	Bus   string `json:"bus"`   // the bus's own clock time, before the walk is taken off
-	Pos   int    `json:"pos"`   // ruler placement, set by Response.Ruler
-	Level int    `json:"level"` // the ruler row, 0 at the axis
+	Bus   string   `json:"bus"`   // the bus's own clock time, before the walk is taken off
+	Pos   int      `json:"pos"`   // ruler placement, set by Response.Ruler
+	Level int      `json:"level"` // the ruler row, 0 at the axis
+	More  []string `json:"more"`  // other lines leaving the same minute, merged into this pin
 }
 
 func (d Departure) MarshalJSON() ([]byte, error) {
@@ -233,21 +235,44 @@ func (r Response) all() []Departure {
 }
 
 // Ruler places the departures within rulerSpan minutes on a 0-100 axis, in as few rows as keep the big times apart.
+// Buses leaving at the same minute share one pin (the extra lines go in More), so a busy minute is one wide pin, not a tall stack.
 // shortcut: gives up and overlaps after rulerLevels rows, when a busy stop crowds one spot.
 func (r Response) Ruler() []Departure {
-	out := []Departure{}
-	var last [rulerLevels]int
+	out, _ := r.ruler()
+	return out
+}
+
+// ruler also returns how many departures the pins hold, which Later needs to know what is left.
+func (r Response) ruler() (out []Departure, used int) {
+	out = []Departure{}
+	var last, width [rulerLevels]int // each row's last pin: its center and its width, in percent of the axis
 	for i := range last {
-		last[i] = -100
+		last[i] = -1000
 	}
 	for _, d := range r.all() {
-		if d.Min > rulerSpan || len(out) == maxRuler {
+		if d.Min > rulerSpan {
 			break
 		}
-		d.Pos = d.Min * 100 / rulerSpan
+		// all() is sorted by minute, so a pin for this time is the last one placed.
+		if n := len(out); n > 0 && out[n-1].Min == d.Min && out[n-1].At == d.At {
+			out[n-1].More = append(out[n-1].More, d.Line)
+			used++
+			continue
+		}
+		if len(out) == maxRuler {
+			break
+		}
+		d.Pos, d.Level = d.Min*100/rulerSpan, 0
+		out = append(out, d)
+		used++
+	}
+	// Widths are known only once the merging is done, so place the rows in a second pass.
+	for i := range out {
+		d := &out[i]
+		w := rulerGap + rulerExtra*len(d.More)
 		best := 0
 		for l := range last {
-			if d.Pos-last[l] >= rulerGap {
+			if d.Pos-last[l] >= (w+width[l])/2 {
 				best = l
 				break
 			}
@@ -255,17 +280,17 @@ func (r Response) Ruler() []Departure {
 				best = l
 			}
 		}
-		last[best], d.Level = d.Pos, best
-		out = append(out, d)
+		last[best], width[best], d.Level = d.Pos, w, best
 	}
-	return out
+	return out, used
 }
 
 // Later is what the ruler didn't place (too far out, or past its cap), as plain times: every shuttle (up to
 // 3), then the next buses, 4 in all, soonest first.
 func (r Response) Later() []Departure {
 	out := []Departure{}
-	rest := r.all()[len(r.Ruler()):]
+	_, used := r.ruler()
+	rest := r.all()[used:]
 	for _, d := range rest {
 		if d.Line == shuttleLine && len(out) < 3 {
 			out = append(out, d)

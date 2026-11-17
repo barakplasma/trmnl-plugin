@@ -32,6 +32,7 @@
   .ib-pt { display: block; font-weight: 700; font-size: 30px; padding: 0 8px; border-radius: 8px; direction: ltr; }
   .ib-pin:first-child .ib-pt { color: #fff; }
   .ib-pin .ib-badge { font-size: 17px; }
+  .ib-badges { display: flex; justify-content: center; gap: 4px; }
   .ib-axis { position: relative; height: 6px; margin: 0 56px; background: #000; }
   .ib-tk { position: absolute; top: -8px; width: 3px; height: 22px; background: #000; transform: translateX(50%); }
   .ib-tl { position: absolute; top: 16px; font-size: 16px; font-weight: 700; transform: translateX(50%); white-space: nowrap; }
@@ -79,7 +80,7 @@
     {% for d in ruler %}
     <div class="ib-pin ib-t{{ d.tier }}" style="right:{{ d.pos }}%;bottom:{{ d.bottom }}px">
       <span class="ib-pt">{% unless d.realtime %}~{% endunless %}{{ d.at }}</span>
-      <span class="ib-badge{% unless d.line == "שאטל" %} ib-fill{% endunless %}">{{ d.line }}</span>
+      <span class="ib-badges"><span class="ib-badge{% unless d.line == "שאטל" %} ib-fill{% endunless %}">{{ d.line }}</span>{% for m in d.more %}<span class="ib-badge{% unless m == "שאטל" %} ib-fill{% endunless %}">{{ m }}</span>{% endfor %}</span>
     </div>
     {% else %}
     <span class="label">אין יציאות קרובות</span>
