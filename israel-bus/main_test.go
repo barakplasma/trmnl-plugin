@@ -171,7 +171,7 @@ func TestHeader(t *testing.T) {
 		{Stop{Code: "1", Name: "א/ב", Label: "בית"}, "בית"},
 		{Stop{Code: "1", Name: "א/ב", ToName: "ג/ד"}, "א ← ג"},
 	} {
-		if got := c.s.Header(); got != c.want {
+		if got := c.s.header(); got != c.want {
 			t.Errorf("%+v: got %q want %q", c.s, got, c.want)
 		}
 	}
@@ -182,7 +182,7 @@ func TestDepartures(t *testing.T) {
 		{Line: "a", Arrivals: []Arrival{{5, "08:05", true}, {30, "08:30", false}}},
 		{Line: "b", Arrivals: []Arrival{{12, "08:12", true}}},
 	}}
-	d := s.Departures()
+	d := s.departures()
 	if len(d) != 3 || d[0].Line != "a" || d[1].Line != "b" || d[2].At != "08:30" {
 		t.Errorf("want a,b,a by time: %+v", d)
 	}
@@ -199,7 +199,7 @@ func TestShuttles(t *testing.T) {
 	if len(resp.Stops) != 1 {
 		t.Fatalf("shuttle-only option dropped: %+v", resp.Stops)
 	}
-	d := resp.Stops[0].Departures()
+	d := resp.Stops[0].departures()
 	if len(d) == 0 || d[len(d)-1].At != "23:59" || d[len(d)-1].Line != "שאטל" || !d[len(d)-1].Realtime {
 		t.Errorf("departures: %+v", d)
 	}
@@ -215,14 +215,14 @@ func TestWalk(t *testing.T) {
 	fakeUpstream(t, &routeCalls)
 	// Fixture 124: 13 min (20:13), 39 min (20:40). A 20 minute walk leaves only the second, as 19 min / 20:20.
 	_, resp := get(t, "stop=27997&lines=124&walk=20")
-	d := resp.Stops[0].Departures()
+	d := resp.Stops[0].departures()
 	if len(d) != 1 || d[0].Min != 19 || d[0].At != "20:20" || d[0].Bus != "20:40" {
 		t.Errorf("walk 20: %+v", d)
 	}
 	if code, _ := get(t, "stop=27997&walk=x"); code != http.StatusBadRequest {
 		t.Errorf("bad walk: %d", code)
 	}
-	if w := (Response{Stops: []Stop{{Walk: 3}, {Walk: 5}, {Walk: 3}, {}}}).Walks(); w != "3 / 5" {
+	if w := (Response{Stops: []Stop{{Walk: 3}, {Walk: 5}, {Walk: 3}, {}}}).walks(); w != "3 / 5" {
 		t.Errorf("walks: %q", w)
 	}
 }
@@ -236,12 +236,12 @@ func TestRuler(t *testing.T) {
 		return a
 	}
 	r := Response{Stops: []Stop{{Walk: 3, Lines: []Line{{Line: "a", Arrivals: arr(2, 4, 5)}, {Line: "b", Arrivals: arr(6, 70)}}}}}
-	got := r.Ruler()
+	got := r.rulerPins()
 	// 2 min is unreachable (walk 3); the three at 1, 2 and 3 min sit within 15% of each other, so each takes its own row.
 	if len(got) != 3 || got[0].Min != 1 || got[0].Level == got[1].Level || got[1].Level == got[2].Level || got[0].Level == got[2].Level {
 		t.Errorf("ruler: %+v", got)
 	}
-	if later := r.Later(); len(later) != 1 || later[0].Min != 67 {
+	if later := r.later(); len(later) != 1 || later[0].Min != 67 {
 		t.Errorf("later: %+v", later)
 	}
 }
@@ -252,11 +252,11 @@ func TestShuttleSurvivesBusyStop(t *testing.T) {
 		many = append(many, Arrival{m, "08:00", true})
 	}
 	r := Response{Stops: []Stop{{Lines: []Line{{Line: "a", Arrivals: many}}, Shuttles: []Arrival{{500, "23:59", true}}}}}
-	d := r.Stops[0].Departures()
+	d := r.Stops[0].departures()
 	if len(d) != maxDepartures+1 || d[len(d)-1].Line != shuttleLine {
 		t.Errorf("late shuttle dropped by the bus cap: %d departures, last %+v", len(d), d[len(d)-1])
 	}
-	later := r.Later()
+	later := r.later()
 	if len(later) == 0 || later[len(later)-1].Line != shuttleLine {
 		t.Errorf("shuttle missing from later: %+v", later)
 	}
@@ -276,11 +276,45 @@ func TestRulerMergesSameMinute(t *testing.T) {
 		{Line: "b", Arrivals: []Arrival{{5, "08:05", true}}},
 		{Line: "c", Arrivals: []Arrival{{5, "08:05", false}, {50, "08:50", true}}},
 	}}}}
-	got := r.Ruler()
+	got := r.rulerPins()
 	if len(got) != 1 || len(got[0].More) != 2 {
 		t.Fatalf("want one pin with 2 more lines, got %+v", got)
 	}
-	if later := r.Later(); len(later) != 1 || later[0].Min != 50 {
+	if later := r.later(); len(later) != 1 || later[0].Min != 50 {
 		t.Errorf("later: %+v", later)
+	}
+}
+
+func TestOpenAPI(t *testing.T) {
+	b, err := openAPISpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(b)
+	// Every JSON key the service sends, and every query param it reads, must be in the spec.
+	raw, _ := json.Marshal(Response{Stops: []Stop{{Lines: []Line{{Arrivals: []Arrival{{}}}}, Shuttles: []Arrival{{}}, Departures: []Departure{{}}}}})
+	var keys func(v any)
+	keys = func(v any) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, x := range v {
+				if !strings.Contains(spec, k+":") {
+					t.Errorf("spec lacks %q", k)
+				}
+				keys(x)
+			}
+		case []any:
+			for _, x := range v {
+				keys(x)
+			}
+		}
+	}
+	var m any
+	json.Unmarshal(raw, &m)
+	keys(m)
+	for _, q := range []string{"title", "stop", "to", "lines", "label", "walk", "shuttle"} {
+		if !strings.Contains(spec, "name: "+q) {
+			t.Errorf("spec lacks query param %q", q)
+		}
 	}
 }
