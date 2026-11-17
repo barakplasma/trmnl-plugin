@@ -28,11 +28,11 @@ const (
 	maxStops         = 4
 	maxArrivals      = 3
 	maxLines         = 6  // lines fetched per stop
-	rulerSpan        = 60 // minutes the full layout's ruler covers
-	rulerLevels      = 5
-	rulerPitch       = 62 // px per ruler row
+	rulerSpan        = 30 // minutes the full layout's ruler covers
+	rulerLevels      = 6
+	rulerPitch       = 52 // px per ruler row
 	rulerGap         = 15 // percent of the axis two big times on one row need apart
-	maxRuler         = 8
+	maxRuler         = 10
 	maxDepartures    = 9  // what fits the full layout; smaller sizes hide more via CSS
 	maxRoutesNoLines = 12 // busy stops serve 50+ routes; times cost one request each
 	maxConcurrent    = 5
