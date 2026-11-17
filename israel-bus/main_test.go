@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeUpstream serves testdata fixtures in place of api.bus.gov.il.
@@ -263,5 +264,13 @@ func TestShuttleSurvivesBusyStop(t *testing.T) {
 	later := r.Later()
 	if len(later) == 0 || later[len(later)-1].Line != shuttleLine {
 		t.Errorf("shuttle missing from later: %+v", later)
+	}
+}
+
+func TestShuttleSeparators(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, israel)
+	got, err := shuttleTimes("7:05;\n18:00,  23:59", now)
+	if err != nil || len(got) != 3 {
+		t.Fatalf("want 3 shuttles, got %+v, %v", got, err)
 	}
 }

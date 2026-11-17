@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 	_ "time/tzdata" // stock alpine has no zoneinfo
+	"unicode"
 )
 
 const (
@@ -272,7 +273,7 @@ func (r Response) Walks() string {
 func shuttleTimes(list string, now time.Time) ([]Arrival, error) {
 	local := now.In(israel)
 	var out []Arrival
-	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ' ' }) {
+	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ';' || unicode.IsSpace(r) }) {
 		if !clockHM.MatchString(f) {
 			return nil, fmt.Errorf("shuttle time %q is not HH:MM", f)
 		}
