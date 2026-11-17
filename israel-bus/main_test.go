@@ -143,26 +143,21 @@ func TestBadInput(t *testing.T) {
 	}
 }
 
-func TestBoardHTML(t *testing.T) {
+func TestBoardData(t *testing.T) {
 	var routeCalls atomic.Int32
 	fakeUpstream(t, &routeCalls)
-	_, resp := get(t, "title=%D7%94%D7%91%D7%99%D7%AA%3Cb%3E&stop=27997&to=99999&label=")
-	h := resp.HTML
-	for _, want := range []string{
-		`dir="rtl"`,
-		"הבית&lt;b&gt;", // title from the query, escaped
-		"ת. רכבת תל אביב - סבידור ← תחנת בדיקה", // names cut at "/"
-		`ib-fill">124</span>`,
-		"13 ד׳",
-		`dir="ltr">20:13</span>`,  // live
-		`dir="ltr">~20:40</span>`, // scheduled
-	} {
-		if !strings.Contains(h, want) {
-			t.Errorf("html missing %q", want)
+	_, resp := get(t, "title=%D7%94%D7%91%D7%99%D7%AA&stop=27997&to=99999&label=")
+	raw, _ := json.Marshal(resp)
+	for _, want := range []string{`"header":"ת. רכבת תל אביב - סבידור ← תחנת בדיקה"`, `"departures":[{`, `"tier":`, `"emoji":`, `"ruler":[`, `"walks":""`, `"later":[`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("json missing %q in %s", want, raw)
 		}
 	}
-	if _, resp = get(t, ""); !strings.Contains(resp.HTML, "יש להגדיר תחנת עלייה") || resp.Title != "אוטובוסים" {
-		t.Errorf("empty config: title %q, html %q", resp.Title, resp.HTML)
+	if strings.Contains(string(raw), `"html"`) {
+		t.Error("service must not send html")
+	}
+	if _, resp = get(t, ""); resp.Title != "אוטובוסים" || resp.Stops == nil || len(resp.Stops) != 0 {
+		t.Errorf("empty config: title %q, stops %#v (want [] not null)", resp.Title, resp.Stops)
 	}
 }
 
