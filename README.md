@@ -7,7 +7,7 @@ that you import as a ZIP.
 | Plugin | What it shows | Needs a server? | Latest release |
 |---|---|---|---|
 | [Kids Age](#kids-age) | Your kids' ages, computed daily from their birthdays | No, runs entirely in Liquid | [`0.0.2`](https://github.com/barakplasma/trmnl-plugin/releases/tag/0.0.2) |
-| [Israel Bus](israel-bus/) | Upcoming Israeli bus and light rail departures, in Hebrew, right to left | Yes, a small Go service | [`israel-bus-v0.2.0`](https://github.com/barakplasma/trmnl-plugin/releases/tag/israel-bus-v0.2.0) |
+| [Israel Bus](israel-bus/) | Upcoming Israeli bus and light rail departures, in Hebrew, right to left | Yes, a small Go service | [`israel-bus-v0.2.3`](https://github.com/barakplasma/trmnl-plugin/releases/tag/israel-bus-v0.2.3) |
 
 ## Install a plugin
 
