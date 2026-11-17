@@ -18,8 +18,8 @@ flowchart LR
 ```
 
 The Go service does all the work: it calls the ministry API (listing a stop's lines needs today's date and returns
-about 1 MB; arrival times cost one request per line), filters by direction, and renders the finished board as HTML.
-The plugin's Liquid templates only print it.
+about 1 MB; arrival times cost one request per line), filters by direction, and works out leave times, the ruler and the "later" line.
+It sends data only; the plugin's Liquid templates draw the board.
 
 ## Service
 
@@ -34,7 +34,7 @@ GET /healthz
 `lines` is comma-separated and matched exactly (`1` is not `1א`); blank means all lines (capped at 12).
 
 ```json
-{"title":"מהבית לעבודה","updated":"21:10","html":"<link …>…","stops":[{"code":"27997","name":"ת. רכבת תל אביב - סבידור/הורדה","label":"","lines":[
+{"title":"מהבית לעבודה","updated":"21:10","walks":"","ruler":[],"later":[],"stops":[{"code":"27997","name":"ת. רכבת תל אביב - סבידור/הורדה","label":"","lines":[
   {"line":"253","direction":"תל אביב יפו רכבת מרכז","operator":"אלקטרה אפיקים",
    "arrivals":[{"min":5,"at":"21:12","realtime":true}]}]}]}
 ```
@@ -47,8 +47,9 @@ Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test
 
 ## Plugin
 
-`src/` holds `settings.yml` and the Liquid templates, which just print the service's `html`
-(or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`board.html`](board.html) is its Go template.
+`src/` holds `settings.yml` and the Liquid templates, which draw the board from the service's data
+(or "server unreachable" if the poll failed). The board is Hebrew, right to left; [`src/shared.liquid`](src/shared.liquid) holds its CSS and markup.
+Each stop also carries `header` and `departures` (leave times with `tier`, `emoji`, `bus`); the top level has `ruler`, `later` and `walks`.
 One payload serves every size: BYOS wraps each layout in `.view--{size}`, and CSS there stacks, trims or hides
 (full: the ruler; halves and quadrant: 3 rows per stop; quadrant: option 1 only).
 

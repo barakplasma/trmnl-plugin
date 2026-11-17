@@ -52,7 +52,7 @@ Up to 4 children. Leave a slot empty to skip it.
 
 ```
 src/          Kids Age plugin (settings.yml + Liquid templates)
-israel-bus/   Israel Bus plugin: src/ (plugin), main.go (Go service), board.html
+israel-bus/   Israel Bus plugin: src/ (plugin), main.go (Go service)
 .github/      CI and release workflows
 ```
 

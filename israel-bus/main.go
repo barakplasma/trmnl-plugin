@@ -4,13 +4,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,6 +20,7 @@ import (
 	"sync"
 	"time"
 	_ "time/tzdata" // stock alpine has no zoneinfo
+	"unicode"
 )
 
 const (
@@ -117,13 +115,28 @@ type Response struct {
 	Title   string `json:"title"`
 	Updated string `json:"updated"`
 	Stops   []Stop `json:"stops"`
-	HTML    string `json:"html"` // the whole board, ready for the plugin to print
 }
 
-//go:embed board.html
-var boardHTML string
+// MarshalJSON adds what the plugin's Liquid can't work out itself: each stop's header and leave times, and the
+// full layout's ruler, "later" line and walk header. The service sends data only; the plugin's templates draw it.
+func (s Stop) MarshalJSON() ([]byte, error) {
+	type plain Stop
+	return json.Marshal(struct {
+		plain
+		Header     string      `json:"header"`
+		Departures []Departure `json:"departures"`
+	}{plain(s), s.Header(), s.Departures()})
+}
 
-var board = template.Must(template.New("board").Parse(boardHTML))
+func (r Response) MarshalJSON() ([]byte, error) {
+	type plain Response
+	return json.Marshal(struct {
+		plain
+		Walks string      `json:"walks"`
+		Ruler []Departure `json:"ruler"`
+		Later []Departure `json:"later"`
+	}{plain(r), r.Walks(), r.Ruler(), r.Later()})
+}
 
 // Header is the stop column's title, "from ← to", with names cut at "/" (the street part).
 func (s Stop) Header() string {
@@ -143,10 +156,21 @@ func (s Stop) Header() string {
 
 // Departure is one bus at a stop, as when to leave the door: At and Min already have the walk taken off.
 type Departure struct {
-	Line string
+	Line string `json:"line"`
 	Arrival
-	Bus        string // the bus's own clock time, before the walk is taken off
-	Pos, Level int    // ruler placement, set by Response.Ruler
+	Bus   string `json:"bus"`   // the bus's own clock time, before the walk is taken off
+	Pos   int    `json:"pos"`   // ruler placement, set by Response.Ruler
+	Level int    `json:"level"` // the ruler row, 0 at the axis
+}
+
+func (d Departure) MarshalJSON() ([]byte, error) {
+	type plain Departure
+	return json.Marshal(struct {
+		plain
+		Tier   int    `json:"tier"`
+		Emoji  string `json:"emoji"`
+		Bottom int    `json:"bottom"`
+	}{plain(d), d.Tier(), d.Emoji(), d.Bottom()})
 }
 
 // Tier is how urgent leaving is: 0 now, 1 soon, 2 there's time, 3 plenty. It picks the emoji and the color.
@@ -170,7 +194,7 @@ func (d Departure) Bottom() int { return d.Level * rulerPitch }
 // Departures merges every line's arrivals and shuttles into one chronological list of leave times
 // (arrival minus Walk; buses you can no longer reach on foot are dropped), capped at maxDepartures.
 func (s Stop) Departures() []Departure {
-	var out []Departure
+	out := []Departure{}
 	add := func(line string, a Arrival) {
 		bus := a.At
 		if a.Min -= s.Walk; a.Min < 0 {
@@ -211,7 +235,7 @@ func (r Response) all() []Departure {
 // Ruler places the departures within rulerSpan minutes on a 0-100 axis, in as few rows as keep the big times apart.
 // shortcut: gives up and overlaps after rulerLevels rows, when a busy stop crowds one spot.
 func (r Response) Ruler() []Departure {
-	var out []Departure
+	out := []Departure{}
 	var last [rulerLevels]int
 	for i := range last {
 		last[i] = -100
@@ -240,7 +264,7 @@ func (r Response) Ruler() []Departure {
 // Later is what the ruler didn't place (too far out, or past its cap), as plain times: every shuttle (up to
 // 3), then the next buses, 4 in all, soonest first.
 func (r Response) Later() []Departure {
-	var out []Departure
+	out := []Departure{}
 	rest := r.all()[len(r.Ruler()):]
 	for _, d := range rest {
 		if d.Line == shuttleLine && len(out) < 3 {
@@ -272,7 +296,7 @@ func (r Response) Walks() string {
 func shuttleTimes(list string, now time.Time) ([]Arrival, error) {
 	local := now.In(israel)
 	var out []Arrival
-	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ' ' }) {
+	for _, f := range strings.FieldsFunc(list, func(r rune) bool { return r == ',' || r == ';' || unicode.IsSpace(r) }) {
 		if !clockHM.MatchString(f) {
 			return nil, fmt.Errorf("shuttle time %q is not HH:MM", f)
 		}
@@ -580,12 +604,6 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
-	var buf bytes.Buffer
-	if err := board.Execute(&buf, resp); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	resp.HTML = buf.String()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
