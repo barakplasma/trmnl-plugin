@@ -88,7 +88,7 @@ func stopName(routes []route, code string) string {
 type Arrival struct {
 	Min      int    `json:"min"`
 	At       string `json:"at"`
-	Realtime bool   `json:"realtime"`
+	Realtime bool   `json:"realtime" description:"True for live GPS or a hand-entered shuttle; false for a scheduled time."`
 }
 
 type Line struct {
@@ -110,37 +110,23 @@ type Stop struct {
 	// Walk is minutes from the door to this stop; Departures are shown as when to leave, not when the bus comes.
 	Walk  int    `json:"walk,omitempty"`
 	Error string `json:"error,omitempty"`
+	// Header and Departures are derived (see header and departures), filled in just before the response is sent.
+	Header     string      `json:"header" description:"Column title, from ← to, names cut at /."`
+	Departures []Departure `json:"departures" description:"Every line and shuttle as when to leave the door, soonest first, at most 9 buses."`
 }
 
 type Response struct {
 	Title   string `json:"title"`
 	Updated string `json:"updated"`
 	Stops   []Stop `json:"stops"`
+	// The rest is derived for the full layout and the ruler header (see walks, rulerPins, later).
+	Walks string      `json:"walks" description:"Walking minutes for the ruler header: 3, 3 / 5, or empty."`
+	Ruler []Departure `json:"ruler" description:"Pins for the full layout: departures in the next 30 minutes across all stops, at most 10."`
+	Later []Departure `json:"later" description:"What the ruler did not place: every shuttle (up to 3), then the next buses, 4 in all."`
 }
 
-// MarshalJSON adds what the plugin's Liquid can't work out itself: each stop's header and leave times, and the
-// full layout's ruler, "later" line and walk header. The service sends data only; the plugin's templates draw it.
-func (s Stop) MarshalJSON() ([]byte, error) {
-	type plain Stop
-	return json.Marshal(struct {
-		plain
-		Header     string      `json:"header"`
-		Departures []Departure `json:"departures"`
-	}{plain(s), s.Header(), s.Departures()})
-}
-
-func (r Response) MarshalJSON() ([]byte, error) {
-	type plain Response
-	return json.Marshal(struct {
-		plain
-		Walks string      `json:"walks"`
-		Ruler []Departure `json:"ruler"`
-		Later []Departure `json:"later"`
-	}{plain(r), r.Walks(), r.Ruler(), r.Later()})
-}
-
-// Header is the stop column's title, "from ← to", with names cut at "/" (the street part).
-func (s Stop) Header() string {
+// header is the stop column's title, "from ← to", with names cut at "/" (the street part).
+func (s Stop) header() string {
 	short := func(name string) string { before, _, _ := strings.Cut(name, "/"); return before }
 	h := s.Label
 	if h == "" {
@@ -159,43 +145,31 @@ func (s Stop) Header() string {
 type Departure struct {
 	Line string `json:"line"`
 	Arrival
-	Bus   string   `json:"bus"`   // the bus's own clock time, before the walk is taken off
-	Pos   int      `json:"pos"`   // ruler placement, set by Response.Ruler
-	Level int      `json:"level"` // the ruler row, 0 at the axis
-	More  []string `json:"more"`  // other lines leaving the same minute, merged into this pin
+	Bus   string   `json:"bus" description:"The bus own clock time, before the walk is taken off."`       // the bus's own clock time, before the walk is taken off
+	Pos   int      `json:"pos" description:"Ruler only: 0-100, percent of the axis from now."`            // ruler placement, set by Response.Ruler
+	Level int      `json:"level" description:"Ruler only: the row, 0 at the axis."`                       // the ruler row, 0 at the axis
+	More  []string `json:"more" description:"Other lines leaving the same minute, merged into this pin."` // other lines leaving the same minute, merged into this pin
+	// Tier is how urgent leaving is: 0 now, 1 soon, 2 there's time, 3 plenty. It picks the emoji and the color.
+	Tier   int    `json:"tier" description:"Urgency: 0 now (1 min or less), 1 soon (5), 2 time (20), 3 plenty."`
+	Emoji  string `json:"emoji"`
+	Bottom int    `json:"bottom" description:"Ruler only: the row height in px above the axis."` // the ruler label's height above the axis in px
 }
 
-func (d Departure) MarshalJSON() ([]byte, error) {
-	type plain Departure
-	return json.Marshal(struct {
-		plain
-		Tier   int    `json:"tier"`
-		Emoji  string `json:"emoji"`
-		Bottom int    `json:"bottom"`
-	}{plain(d), d.Tier(), d.Emoji(), d.Bottom()})
-}
-
-// Tier is how urgent leaving is: 0 now, 1 soon, 2 there's time, 3 plenty. It picks the emoji and the color.
-func (d Departure) Tier() int {
+func tierOf(min int) int {
 	switch {
-	case d.Min <= 1:
+	case min <= 1:
 		return 0
-	case d.Min <= 5:
+	case min <= 5:
 		return 1
-	case d.Min <= 20:
+	case min <= 20:
 		return 2
 	}
 	return 3
 }
 
-func (d Departure) Emoji() string { return [...]string{"🏃", "🚶", "☕", "🛋️"}[d.Tier()] }
-
-// Bottom is the ruler label's height above the axis in px.
-func (d Departure) Bottom() int { return d.Level * rulerPitch }
-
-// Departures merges every line's arrivals and shuttles into one chronological list of leave times
+// departures merges every line's arrivals and shuttles into one chronological list of leave times
 // (arrival minus Walk; buses you can no longer reach on foot are dropped), capped at maxDepartures.
-func (s Stop) Departures() []Departure {
+func (s Stop) departures() []Departure {
 	out := []Departure{}
 	add := func(line string, a Arrival) {
 		bus := a.At
@@ -205,7 +179,8 @@ func (s Stop) Departures() []Departure {
 		if t, err := time.Parse("15:04", a.At); err == nil {
 			a.At = t.Add(-time.Duration(s.Walk) * time.Minute).Format("15:04")
 		}
-		out = append(out, Departure{Line: line, Arrival: a, Bus: bus})
+		t := tierOf(a.Min)
+		out = append(out, Departure{Line: line, Arrival: a, Bus: bus, Tier: t, Emoji: [...]string{"🏃", "🚶", "☕", "🛋️"}[t]})
 	}
 	for _, l := range s.Lines {
 		for _, a := range l.Arrivals {
@@ -228,22 +203,22 @@ func (s Stop) Departures() []Departure {
 func (r Response) all() []Departure {
 	var out []Departure
 	for _, s := range r.Stops {
-		out = append(out, s.Departures()...)
+		out = append(out, s.departures()...)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Min < out[j].Min })
 	return out
 }
 
-// Ruler places the departures within rulerSpan minutes on a 0-100 axis, in as few rows as keep the big times apart.
+// rulerPins places the departures within rulerSpan minutes on a 0-100 axis, in as few rows as keep the big times apart.
 // Buses leaving at the same minute share one pin (the extra lines go in More), so a busy minute is one wide pin, not a tall stack.
 // shortcut: gives up and overlaps after rulerLevels rows, when a busy stop crowds one spot.
-func (r Response) Ruler() []Departure {
-	out, _ := r.ruler()
+func (r Response) rulerPins() []Departure {
+	out, _ := r.layout()
 	return out
 }
 
-// ruler also returns how many departures the pins hold, which Later needs to know what is left.
-func (r Response) ruler() (out []Departure, used int) {
+// layout also returns how many departures the pins hold, which Later needs to know what is left.
+func (r Response) layout() (out []Departure, used int) {
 	out = []Departure{}
 	var last, width [rulerLevels]int // each row's last pin: its center and its width, in percent of the axis
 	for i := range last {
@@ -281,15 +256,16 @@ func (r Response) ruler() (out []Departure, used int) {
 			}
 		}
 		last[best], width[best], d.Level = d.Pos, w, best
+		d.Bottom = best * rulerPitch
 	}
 	return out, used
 }
 
-// Later is what the ruler didn't place (too far out, or past its cap), as plain times: every shuttle (up to
+// later is what the ruler didn't place (too far out, or past its cap), as plain times: every shuttle (up to
 // 3), then the next buses, 4 in all, soonest first.
-func (r Response) Later() []Departure {
+func (r Response) later() []Departure {
 	out := []Departure{}
-	_, used := r.ruler()
+	_, used := r.layout()
 	rest := r.all()[used:]
 	for _, d := range rest {
 		if d.Line == shuttleLine && len(out) < 3 {
@@ -305,8 +281,8 @@ func (r Response) Later() []Departure {
 	return out
 }
 
-// Walks is the walking time for the ruler's header: "3", "3 / 5", or "" when none is set.
-func (r Response) Walks() string {
+// walks is the walking time for the ruler's header: "3", "3 / 5", or "" when none is set.
+func (r Response) walks() string {
 	var w []string
 	for _, s := range r.Stops {
 		if v := fmt.Sprint(s.Walk); s.Walk > 0 && !slices.Contains(w, v) {
@@ -628,6 +604,10 @@ func handleStops(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 	wg.Wait()
+	for i := range resp.Stops {
+		resp.Stops[i].Header, resp.Stops[i].Departures = resp.Stops[i].header(), resp.Stops[i].departures()
+	}
+	resp.Walks, resp.Ruler, resp.Later = resp.walks(), resp.rulerPins(), resp.later()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -639,6 +619,7 @@ func main() {
 		addr = ":8080"
 	}
 	http.HandleFunc("GET /stops", handleStops)
+	http.HandleFunc("GET /openapi.yaml", handleOpenAPI)
 	http.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
 	log.Printf("listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
