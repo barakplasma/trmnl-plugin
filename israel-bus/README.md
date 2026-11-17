@@ -26,8 +26,13 @@ The service sends data only; the plugin's Liquid draws it. Two endpoints, no aut
 
 ```
 GET /stops?title=מהבית+לעבודה&stop=27997&to=21534&lines=124,155&label=&walk=3&shuttle=16:30,18:00&stop=21500&...
+GET /openapi.yaml   -> the OpenAPI 3.1 schema of /stops
 GET /healthz        -> 200 "ok"
 ```
+
+`/openapi.yaml` is machine generated at request time (swaggest/openapi-go) from the same Go types the handler fills in, so it cannot drift from the JSON;
+the field descriptions are the `description` tags on those types. Check it with `uvx --from openapi-spec-validator openapi-spec-validator <(curl -s :8080/openapi.yaml)`.
+Query params are declared once in [`openapi.go`](openapi.go), because the handler reads them by hand (they repeat and pair up by position); a test fails if the names drift.
 
 Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test ./...`.
 
