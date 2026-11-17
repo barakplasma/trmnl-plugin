@@ -29,7 +29,7 @@
   .view--full .ib-ruler { display: flex; }
   .ib-rarea { position: relative; height: 310px; margin: 0 56px; }
   .ib-pin { position: absolute; transform: translateX(50%); text-align: center; white-space: nowrap; line-height: 1.05; }
-  .ib-pt { display: block; font-weight: 700; font-size: 38px; padding: 0 8px; border-radius: 8px; direction: ltr; }
+  .ib-pt { display: block; font-weight: 700; font-size: 30px; padding: 0 8px; border-radius: 8px; direction: ltr; }
   .ib-pin:first-child .ib-pt { color: #fff; }
   .ib-pin .ib-badge { font-size: 17px; }
   .ib-axis { position: relative; height: 6px; margin: 0 56px; background: #000; }
@@ -87,12 +87,12 @@
   </div>
   <div class="ib-axis">
     <span class="ib-tk" style="right:0"></span><span class="ib-tl" dir="ltr" style="right:0">עכשיו</span>
-    <span class="ib-tk" style="right:16.67%"></span><span class="ib-tl" dir="ltr" style="right:16.67%">+10</span>
-    <span class="ib-tk" style="right:33.33%"></span><span class="ib-tl" dir="ltr" style="right:33.33%">+20</span>
-    <span class="ib-tk" style="right:50%"></span><span class="ib-tl" dir="ltr" style="right:50%">+30</span>
-    <span class="ib-tk" style="right:66.67%"></span><span class="ib-tl" dir="ltr" style="right:66.67%">+40</span>
-    <span class="ib-tk" style="right:83.33%"></span><span class="ib-tl" dir="ltr" style="right:83.33%">+50</span>
-    <span class="ib-tk" style="right:100%"></span><span class="ib-tl" dir="ltr" style="right:100%">+60</span>
+    <span class="ib-tk" style="right:16.67%"></span><span class="ib-tl" dir="ltr" style="right:16.67%">+5</span>
+    <span class="ib-tk" style="right:33.33%"></span><span class="ib-tl" dir="ltr" style="right:33.33%">+10</span>
+    <span class="ib-tk" style="right:50%"></span><span class="ib-tl" dir="ltr" style="right:50%">+15</span>
+    <span class="ib-tk" style="right:66.67%"></span><span class="ib-tl" dir="ltr" style="right:66.67%">+20</span>
+    <span class="ib-tk" style="right:83.33%"></span><span class="ib-tl" dir="ltr" style="right:83.33%">+25</span>
+    <span class="ib-tk" style="right:100%"></span><span class="ib-tl" dir="ltr" style="right:100%">+30</span>
   </div>
   {% if later.size > 0 %}
   <div class="ib-later">אחר כך: {% for d in later %}<span dir="ltr">{{ d.at }}</span> {{ d.line }} &nbsp;{% endfor %}</div>
