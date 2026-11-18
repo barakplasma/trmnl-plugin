@@ -633,7 +633,9 @@ func main() {
 	http.HandleFunc("GET /openapi.yaml", handleOpenAPI)
 	http.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
 	// Span names use the path: the route set is fixed and small, so it stays low-cardinality.
+	// Kubernetes probes hit /healthz every few seconds; tracing them would bury real requests.
 	handler := otelhttp.NewHandler(http.DefaultServeMux, "israel-bus",
+		otelhttp.WithFilter(func(r *http.Request) bool { return r.URL.Path != "/healthz" }),
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }))
 	srv := &http.Server{Addr: addr, Handler: handler}
 	go func() {
