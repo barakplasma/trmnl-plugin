@@ -1,6 +1,6 @@
 module github.com/barakplasma/trmnl-plugin/israel-bus
 
-go 1.26.0
+go 1.26.11
 
 require (
 	github.com/swaggest/openapi-go v0.2.61
