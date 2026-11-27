@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -60,6 +61,9 @@ func setupTelemetry(ctx context.Context) (func(context.Context) error, error) {
 	}
 	lp := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewBatchProcessor(le)), sdklog.WithResource(res))
 
+	// Exporter errors go straight to stderr: through log.Printf they would be
+	// exported by the same failing pipeline and produce another error, once a second.
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) { fmt.Fprintln(os.Stderr, "otel:", err) }))
 	otel.SetTracerProvider(tp)
 	otel.SetMeterProvider(mp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
