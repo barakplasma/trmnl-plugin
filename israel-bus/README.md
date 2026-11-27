@@ -36,6 +36,13 @@ Query params are declared once in [`openapi.go`](openapi.go), because the handle
 
 Env: `LISTEN` (default `:8080`). Run locally with `go run .`; test with `go test ./...`.
 
+### Telemetry
+
+Traces, metrics and logs go out over OTLP/HTTP when any `OTEL_EXPORTER_OTLP_*ENDPOINT` env var is set; with none set nothing is exported.
+It reads the standard `OTEL_*` vars (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `..._METRICS_ENDPOINT`, `..._LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative`).
+Each `/stops` request is a server span, with a child span per upstream ministry call; `http.server.*` and `http.client.*` metrics come with them, and `log.Printf` lines are exported as log records.
+A sink that is down never blocks a request, and the exporters flush on SIGTERM.
+
 ### `GET /stops` query
 
 `stop`, `to`, `lines`, `label`, `walk` and `shuttle` repeat and **pair up by position**: the 1st of each describes option 1, the 2nd option 2, and so on.

@@ -12,15 +12,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	_ "time/tzdata" // stock alpine has no zoneinfo
 	"unicode"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -46,7 +50,7 @@ var (
 	israel   = mustTZ("Asia/Jerusalem")
 	stopCode = regexp.MustCompile(`^\d{1,6}$`)
 	clockHM  = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
-	client   = &http.Client{Timeout: 8 * time.Second}
+	client   = &http.Client{Timeout: 8 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
 
 	cacheMu sync.Mutex
 	cache   = map[string]cachedRoutes{} // key: stop code + Israel-local date
@@ -618,9 +622,35 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	shutdownTelemetry, err := setupTelemetry(ctx)
+	if err != nil {
+		log.Printf("telemetry disabled: %v", err) // fail open: the service still serves
+		shutdownTelemetry = func(context.Context) error { return nil }
+	}
 	http.HandleFunc("GET /stops", handleStops)
 	http.HandleFunc("GET /openapi.yaml", handleOpenAPI)
 	http.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	// Span names use the path: the route set is fixed and small, so it stays low-cardinality.
+	// Kubernetes probes hit /healthz every few seconds; tracing them would bury real requests.
+	handler := otelhttp.NewHandler(http.DefaultServeMux, "israel-bus",
+		otelhttp.WithFilter(func(r *http.Request) bool { return r.URL.Path != "/healthz" }),
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }))
+	srv := &http.Server{Addr: addr, Handler: handler}
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		srv.Shutdown(sctx)
+	}()
 	log.Printf("listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
+	fctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := shutdownTelemetry(fctx); err != nil {
+		log.Printf("telemetry flush: %v", err)
+	}
 }
